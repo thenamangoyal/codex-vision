@@ -13,21 +13,52 @@ Claude Code can run `codex exec` via Bash, but the upstream `codex` CLI's image 
 
 ## Install
 
-### Manual (this directory)
+### Recommended: as a Claude Code plugin
 
-Drop the `codex-vision/` directory into your skills directory:
+If you have the `claude` CLI on your PATH (Claude Code is already installed), this is one command:
 
 ```bash
-git clone <this-repo> /tmp/codex-vision-src
-cp -r /tmp/codex-vision-src ~/.claude/skills/codex-vision
-chmod +x ~/.claude/skills/codex-vision/scripts/codex-vision.sh
+claude plugin marketplace add thenamangoyal/codex-vision
+claude plugin install codex-vision
 ```
 
-The skill auto-loads in any Claude Code session because `~/.claude/skills/` is the user-level skills directory (cross-project).
+Or from inside an interactive Claude Code session:
 
-### As a Claude Code plugin
+```
+/plugin marketplace add thenamangoyal/codex-vision
+/plugin install codex-vision
+```
 
-`.claude-plugin/plugin.json` is shipped so the directory can be installed via `claude plugin install` from any source the Claude Code CLI supports.
+That's it — the skill loads in every project. Verify with:
+
+```bash
+~/.claude/plugins/.../codex-vision/scripts/codex-vision.sh doctor
+~/.claude/plugins/.../codex-vision/scripts/codex-vision.sh selftest
+```
+
+To uninstall:
+
+```bash
+claude plugin uninstall codex-vision
+```
+
+### Alternative: drop-in skills directory (no plugin manager)
+
+If you'd rather avoid the marketplace flow:
+
+```bash
+git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision
+~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
+~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
+```
+
+`~/.claude/skills/` is the user-level skills directory, so the skill auto-loads cross-project.
+
+To uninstall:
+
+```bash
+rm -rf ~/.claude/skills/codex-vision
+```
 
 ## Usage
 

@@ -86,6 +86,23 @@ The script auto-detects the codex binary in this order:
 2. `/Applications/Codex.app/Contents/Resources/codex`
 3. fail with a clear error message
 
+## How users install the skill
+
+If a user asks "how do I install codex-vision" or wants to share it with someone, the canonical install path (assuming `claude` CLI is on PATH) is:
+
+```bash
+claude plugin marketplace add thenamangoyal/codex-vision
+claude plugin install codex-vision
+```
+
+Or interactively inside Claude Code:
+```
+/plugin marketplace add thenamangoyal/codex-vision
+/plugin install codex-vision
+```
+
+Drop-in fallback (no plugin manager): `git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision`. After install, `<skill-dir>/scripts/codex-vision.sh doctor && selftest` verifies the install end-to-end.
+
 ## Don't
 
 - Don't bypass the `claude-codex-` prefix — it's how the user identifies sessions Claude spawned.
