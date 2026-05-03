@@ -119,9 +119,12 @@ run_codex() {
   # All input goes through one entrypoint so tmux-mode and direct-mode share a code path.
   local args=("exec" "--skip-git-repo-check")
   [[ -n "$MODEL" ]] && args+=("--model" "$MODEL")
-  for img in "${IMAGES[@]:-}"; do
-    [[ -n "$img" ]] && args+=("-i" "$img")
-  done
+  # bash 3.2: ${IMAGES[@]:-} is unreliable on empty arrays under set -u.
+  if [[ ${#IMAGES[@]} -gt 0 ]]; then
+    for img in "${IMAGES[@]}"; do
+      [[ -n "$img" ]] && args+=("-i" "$img")
+    done
+  fi
   # `-i` is variadic in codex 0.128 — `--` separates image list from PROMPT positional.
   args+=("--" "$PROMPT")
 
@@ -166,8 +169,10 @@ case "$MODE" in
     if [[ ${#POSITIONAL[@]} -lt 2 ]]; then
       echo "ERROR: review needs at least one IMAGE and a PROMPT." >&2; usage; exit 2
     fi
-    PROMPT="${POSITIONAL[-1]}"
-    IMAGES=("${POSITIONAL[@]:0:${#POSITIONAL[@]}-1}")
+    # bash 3.2 (macOS default) does not support negative array indices.
+    _last_idx=$(( ${#POSITIONAL[@]} - 1 ))
+    PROMPT="${POSITIONAL[$_last_idx]}"
+    IMAGES=("${POSITIONAL[@]:0:$_last_idx}")
     for img in "${IMAGES[@]}"; do
       [[ -f "$img" ]] || { echo "ERROR: image not found: $img" >&2; exit 2; }
     done
