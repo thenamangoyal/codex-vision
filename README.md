@@ -93,38 +93,30 @@ Drop the PNG straight into the ticket — reviewers immediately get the vibe.
 
 ## Install
 
-### Recommended: as a Claude Code plugin
+### Recommended: via [`npx skills`](https://skills.sh)
 
-If you have the `claude` CLI on your PATH (Claude Code is already installed), this is one command:
-
-```bash
-claude plugin marketplace add thenamangoyal/codex-vision
-claude plugin install codex-vision
-```
-
-Or from inside an interactive Claude Code session:
-
-```
-/plugin marketplace add thenamangoyal/codex-vision
-/plugin install codex-vision
-```
-
-That's it — the skill loads in every project. Verify with:
+One command, agent-agnostic — installs into Claude Code, Cursor, Codex, Gemini CLI, and any other agent that respects `~/.claude/skills/` or its sibling directories:
 
 ```bash
-~/.claude/plugins/.../codex-vision/scripts/codex-vision.sh doctor
-~/.claude/plugins/.../codex-vision/scripts/codex-vision.sh selftest
+npx skills add thenamangoyal/codex-vision
+```
+
+Verify the install:
+
+```bash
+~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
+~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
 ```
 
 To uninstall:
 
 ```bash
-claude plugin uninstall codex-vision
+npx skills remove codex-vision
 ```
 
-### Alternative: drop-in skills directory (no plugin manager)
+### Alternative: direct git clone
 
-If you'd rather avoid the marketplace flow:
+If you'd rather skip `npx skills`:
 
 ```bash
 git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision
@@ -139,6 +131,10 @@ To uninstall:
 ```bash
 rm -rf ~/.claude/skills/codex-vision
 ```
+
+### Why "skill" not "plugin"
+
+A Claude Code _plugin_ is the wrapper format for bundles that include MCP servers, agents, slash commands, _and_ skills. codex-vision is just a skill — a single shell script with a `SKILL.md` — so the plugin layer was overhead. The `npx skills` registry handles distribution directly, and the skill works in every coding agent that reads from `~/.claude/skills/` (or symlinks to it).
 
 ## Usage
 

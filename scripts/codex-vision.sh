@@ -74,10 +74,14 @@ case "$MODE" in
 esac
 
 # ---------- parse options + positional args ----------
+# Default model: gpt-5.5 — the current Codex generation as of May 2026.
+# image_gen.imagegen quality is materially better on gpt-5.5+ vs older
+# models, so we pin it here unless the user explicitly overrides via --model.
+# This silently overrides anything in ~/.codex/config.toml that's older.
 OUT_PATH=""
 TMUX_NAME=""
 KEEP=0
-MODEL=""
+MODEL="gpt-5.5"
 POSITIONAL=()
 
 while [[ $# -gt 0 ]]; do
