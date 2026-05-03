@@ -1,0 +1,11 @@
+# Local artefacts only — nothing in this repo should leak machine state.
+.DS_Store
+*.log
+*.swp
+.idea/
+.vscode/
+
+# Skill runtime outputs (default locations live in /tmp, not the repo, but
+# guard against accidental cwd-relative writes):
+codex-vision-out/
+*.tmux-log
