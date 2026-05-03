@@ -15,18 +15,16 @@ Claude Code can run `codex exec` via Bash, but the upstream `codex` CLI's image 
 
 All five images and the critique below were produced by running this skill on a vanilla MacBook in under 90 seconds each. No design tools, no Figma, no manual prompt-stitching — just one shell command per artifact.
 
-### 1 · Pitch a website redesign with a MacBook hero mock
+### 1 · Sell a redesign with a side-by-side before/after
 
-You're proposing a new landing page in a Linear ticket or design doc. Hand-wavy descriptions don't sell, but spinning up a Figma mock for an idea you might throw away is overkill. Generate a photoreal device shot in one command:
+When you want to argue for a refactor, a single image of before vs after carries more weight than any RFC paragraph. The same skill that generates a fresh mock can render the comparison directly:
 
 ```bash
-codex-vision generate "High-fidelity SaaS landing page mock displayed inside a realistic 16-inch MacBook Pro, viewed at a subtle three-quarter angle with photoreal device shadow. Dark navy hero with a centered headline 'Ship faster with Atlas', a tight subhead, primary coral CTA + outlined secondary, and a floating product UI preview in the lower hero. 3-column features row below. Off-white canvas, single coral accent, Inter typography, generous whitespace. Soft cream-peach gradient backdrop. 16:10, magazine-quality." \
-  --out ~/Desktop/atlas-landing.png
+codex-vision generate "Side-by-side before/after redesign comparison of a developer-tool dashboard, both shown inside identical Chrome browser frames stacked vertically. Top: 'Before — cluttered v1' (busy admin dashboard, tiny tables, gray-on-gray, no whitespace). Bottom: 'After — refined v2' (same data, generous whitespace, three KPI cards, one focused chart, single primary CTA). Both same fictional product 'Console' in nav. 16:10 each, light-cream background." \
+  --out ~/Desktop/console-v1-vs-v2.png
 ```
 
-![Generated MacBook landing-page mock](./tests/demos/landing_macbook.png)
-
-Drop the PNG straight into the ticket — reviewers immediately get the vibe.
+![Generated before/after redesign](./tests/demos/redesign_before_after.png)
 
 ### 2 · Propose a mobile feature with a believable iPhone render
 
@@ -76,16 +74,18 @@ codex-vision generate "Minimalist boxes-and-arrows system architecture diagram: 
 
 ![Generated architecture diagram](./tests/demos/arch_diagram.png)
 
-### 6 · Sell a redesign with a side-by-side before/after
+### 6 · Pitch a website redesign with an iMac hero mock
 
-When you want to argue for a refactor, a single image of the before vs after carries more weight than any RFC paragraph:
+You're proposing a new landing page in a Linear ticket or design doc. Hand-wavy descriptions don't sell, but spinning up a Figma mock for an idea you might throw away is overkill. Generate a photoreal device shot in one command — the front-facing iMac framing reads more like a product hero than any laptop angle:
 
 ```bash
-codex-vision generate "Side-by-side before/after redesign comparison of a developer-tool dashboard, both shown inside identical Chrome browser frames stacked vertically. Top: 'Before — cluttered v1' (busy admin dashboard, tiny tables, gray-on-gray, no whitespace). Bottom: 'After — refined v2' (same data, generous whitespace, three KPI cards, one focused chart, single primary CTA). Both same fictional product 'Console' in nav. 16:10 each, light-cream background." \
-  --out ~/Desktop/console-v1-vs-v2.png
+codex-vision generate "High-fidelity SaaS landing page mock displayed inside a 27-inch Apple iMac (silver/aluminum), viewed front-on with the screen filling most of the frame. Dark navy hero with bold left-aligned 'Ship faster with Atlas', a tight subhead, primary coral CTA + outlined secondary, and a floating product UI preview card in the lower hero. 3-column features row below. Top nav with the Atlas wordmark, 5 small links, and a Sign-in button. Off-white canvas, single coral accent, Inter typography, generous whitespace. Soft cream-to-peach gradient backdrop, photoreal display reflection, soft top-left key light, minimal stand visible at the bottom. 16:9, magazine-quality." \
+  --out ~/Desktop/atlas-landing.png
 ```
 
-![Generated before/after redesign](./tests/demos/redesign_before_after.png)
+![Generated iMac landing-page mock](./tests/demos/landing_imac.png)
+
+Drop the PNG straight into the ticket — reviewers immediately get the vibe.
 
 > **What makes a good prompt.** Specify device frame, lighting, background, palette (with hex if you have it), typography, and aspect ratio. The difference between "a UI for a habit tracker" and the prompt above is the difference between a generic stock-image render and a portfolio-grade mock. Be opinionated — bad prompts make bad images.
 
