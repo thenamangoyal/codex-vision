@@ -1,6 +1,6 @@
 {
   "name": "codex-vision",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Pass images to OpenAI Codex from Claude Code (review screenshots, generate/edit images via Codex's image_gen tool). Wraps `codex exec -i` with a tmux opt-in.",
   "author": "Naman Goyal",
   "license": "MIT",

@@ -118,6 +118,15 @@ ensure_out_path() {
 run_codex() {
   # All input goes through one entrypoint so tmux-mode and direct-mode share a code path.
   local args=("exec" "--skip-git-repo-check")
+  # `generate` and `edit` need to write the produced image to OUT_PATH.
+  # codex defaults to read-only sandbox; switch to workspace-write AND
+  # set the workspace (-C) to the OUT_PATH's parent directory, since
+  # workspace-write only allows writes inside the workspace, $TMPDIR, and
+  # ~/.codex/memories — not arbitrary paths under $HOME.
+  if [[ "$MODE" == "generate" || "$MODE" == "edit" ]]; then
+    args+=("--sandbox" "workspace-write")
+    args+=("-C" "$(dirname "$OUT_PATH")")
+  fi
   [[ -n "$MODEL" ]] && args+=("--model" "$MODEL")
   # bash 3.2: ${IMAGES[@]:-} is unreliable on empty arrays under set -u.
   if [[ ${#IMAGES[@]} -gt 0 ]]; then
@@ -185,7 +194,11 @@ case "$MODE" in
     fi
     USER_PROMPT="${POSITIONAL[0]}"
     ensure_out_path "gen" "$(slugify "$USER_PROMPT")"
-    PROMPT="Use the built-in image_gen tool to generate the following image: ${USER_PROMPT}. Save the result to ${OUT_PATH}. After saving, print only the absolute output path on its own line, then a one-sentence summary."
+    PROMPT="Use the built-in image_gen tool to generate the following image: ${USER_PROMPT}
+
+After image_gen finishes, the resulting PNG will be at \`~/.codex/generated_images/<session-id>/ig_*.png\` (use the most recent file in your current session's directory). Use a shell command to \`cp\` that file to exactly: ${OUT_PATH}
+
+Then on its own line print exactly the saved path, followed by a one-sentence summary of what you drew."
     IMAGES=()
     run_codex
     [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
@@ -199,7 +212,11 @@ case "$MODE" in
     USER_PROMPT="${POSITIONAL[1]}"
     [[ -f "$SRC_IMAGE" ]] || { echo "ERROR: image not found: $SRC_IMAGE" >&2; exit 2; }
     ensure_out_path "edit" "$(slugify "$USER_PROMPT")"
-    PROMPT="Use the built-in image_gen tool to edit the attached image with this instruction: ${USER_PROMPT}. Save the edited result to ${OUT_PATH}. After saving, print only the absolute output path on its own line, then a one-sentence summary of what changed."
+    PROMPT="Use the built-in image_gen tool to edit the attached image with this instruction: ${USER_PROMPT}
+
+After image_gen finishes, the edited PNG will be at \`~/.codex/generated_images/<session-id>/ig_*.png\` (use the most recent file in your current session's directory). Use a shell command to \`cp\` that file to exactly: ${OUT_PATH}
+
+Then on its own line print exactly the saved path, followed by a one-sentence summary of what changed."
     IMAGES=("$SRC_IMAGE")
     run_codex
     [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
