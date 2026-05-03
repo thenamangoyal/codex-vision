@@ -24,7 +24,7 @@ codex-vision generate "Side-by-side before/after redesign comparison of a develo
   --out ~/Desktop/console-v1-vs-v2.png
 ```
 
-![Generated before/after redesign](./tests/demos/redesign_before_after.png)
+![Generated before/after redesign](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/redesign_before_after.png)
 
 ### 2 · Propose a mobile feature with a believable iPhone render
 
@@ -36,7 +36,7 @@ codex-vision generate "Minimalist mobile app screen for a fictional habit-tracke
 ```
 
 <p align="center">
-  <img src="./tests/demos/app_iphone.png" alt="Generated iPhone app mock" width="320" />
+  <img src="https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/app_iphone.png" alt="Generated iPhone app mock" width="320" />
 </p>
 
 ### 3 · Show a new view inside a real browser frame
@@ -48,7 +48,7 @@ codex-vision generate "Clean SaaS pricing page mock displayed inside a realistic
   --out ~/Desktop/pricing.png
 ```
 
-![Generated pricing page in browser frame](./tests/demos/pricing_browser.png)
+![Generated pricing page in browser frame](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/pricing_browser.png)
 
 ### 4 · Critique an existing UI in 60 seconds
 
@@ -74,7 +74,7 @@ codex-vision generate "Minimalist boxes-and-arrows system architecture diagram: 
   --out ~/Desktop/arch.png
 ```
 
-![Generated architecture diagram](./tests/demos/arch_diagram.png)
+![Generated architecture diagram](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/arch_diagram.png)
 
 ### 6 · Pitch a website redesign with an iMac hero mock
 
@@ -85,7 +85,7 @@ codex-vision generate "High-fidelity SaaS landing page mock displayed inside a 2
   --out ~/Desktop/atlas-landing.png
 ```
 
-![Generated iMac landing-page mock](./tests/demos/landing_imac.png)
+![Generated iMac landing-page mock](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/landing_imac.png)
 
 Drop the PNG straight into the ticket — reviewers immediately get the vibe.
 
