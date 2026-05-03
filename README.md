@@ -35,7 +35,9 @@ codex-vision generate "Minimalist mobile app screen for a fictional habit-tracke
   --out ~/Desktop/streak-app.png
 ```
 
-![Generated iPhone app mock](./tests/demos/app_iphone.png)
+<p align="center">
+  <img src="./tests/demos/app_iphone.png" alt="Generated iPhone app mock" width="320" />
+</p>
 
 ### 3 · Show a new view inside a real browser frame
 
