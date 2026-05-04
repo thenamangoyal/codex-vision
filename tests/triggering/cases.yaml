@@ -1,0 +1,267 @@
+# Triggering eval cases for the codex-vision skill.
+#
+# Each case is a (prompt, expected) pair. `expected` is one of:
+#   fire     — skill should auto-invoke
+#   skip     — skill should NOT fire; route to a different tool (codex exec, codex:rescue, etc.)
+#   clarify  — intent is genuinely ambiguous; skill should pause and ask before invoking
+#
+# The runner (scripts/check-triggering.sh) treats `skip` and `clarify` both as
+# "did not auto-fire" for the FIRE-misfire assertion. A separate count tracks
+# `clarify`-marked cases where the model could legitimately go either way.
+#
+# Distribution: 15 fire / 20 skip / 15 clarify.
+
+cases:
+  # ---------- FIRE: image + Codex intent ----------
+  - id: T01
+    prompt: "Use codex to review /tmp/ui.png and tell me what's wrong with the layout."
+    expected: fire
+    note: "explicit path + codex + review intent"
+
+  - id: T02
+    prompt: "/codex-vision review ~/Desktop/dashboard.png 'critique hierarchy and contrast'"
+    expected: fire
+    note: "explicit slash invocation"
+
+  - id: T03
+    prompt: "Run codex-vision review /tmp/foo.jpg"
+    expected: fire
+    note: "explicit by-name invocation"
+
+  - id: T04
+    prompt: "Have codex generate a UI mock for a SaaS pricing page inside a Chrome browser frame."
+    expected: fire
+    note: "generate + explicit codex intent + visual artifact"
+
+  - id: T05
+    prompt: "Use codex's image_gen tool to make an iMac landing-page hero mock."
+    expected: fire
+    note: "explicit image_gen reference"
+
+  - id: T06
+    prompt: "Edit /tmp/raw.png with codex — remove the red overlay and make the background transparent."
+    expected: fire
+    note: "edit + codex + path"
+
+  - id: T07
+    prompt: "Codex, edit my-screenshot.webp to make the palette warmer and add a 'NEW' badge."
+    expected: fire
+    note: "edit WebP via codex"
+
+  - id: T08
+    prompt: "I just took a screenshot at /tmp/page.png. Send it to codex for a 5-point design review."
+    expected: fire
+    note: "just-produced screenshot + explicit codex review of *that* image"
+
+  - id: T09
+    prompt: "Use codex-vision generate 'iPhone habit-tracker mock with a circular progress ring'"
+    expected: fire
+    note: "explicit invocation + generate"
+
+  - id: T10
+    prompt: "Generate an architecture diagram with Codex — boxes-and-arrows, monochrome, 16:10."
+    expected: fire
+    note: "generate via codex with visual artifact"
+
+  - id: T11
+    prompt: "Codex review /tmp/onboarding.jpeg with focus on visual hierarchy."
+    expected: fire
+    note: "review JPEG"
+
+  - id: T12
+    prompt: "Use codex-vision to clean up /tmp/raw.gif"
+    expected: fire
+    note: "edit GIF via explicit invocation"
+
+  - id: T13
+    prompt: "Have codex look at the screenshot at /Users/me/Desktop/foo.png and find UX issues."
+    expected: fire
+    note: "explicit codex + path + review intent"
+
+  - id: T14
+    prompt: "Take a screenshot of the page, then have codex review it for hierarchy issues."
+    expected: fire
+    note: "compound: produce-then-codex-review-it"
+
+  - id: T15
+    prompt: "Generate a UI mockup. Use codex."
+    expected: fire
+    note: "generate + explicit codex"
+
+  # ---------- SKIP: text/code/non-codex intent ----------
+  - id: T16
+    prompt: "Use codex to review my pull request at PR #423."
+    expected: skip
+    note: "code review, no image"
+
+  - id: T17
+    prompt: "Have codex debug this stack trace: TypeError: cannot read property 'foo' of undefined ..."
+    expected: skip
+    note: "text artifact (stack trace)"
+
+  - id: T18
+    prompt: "Use codex to refactor this function to use async/await."
+    expected: skip
+    note: "code refactor, text-only"
+
+  - id: T19
+    prompt: "Codex, what do you think of this approach to caching? Should I use Redis or Memcached?"
+    expected: skip
+    note: "generic question, no image"
+
+  - id: T20
+    prompt: "Have codex pair-program with me on the auth migration for the next hour."
+    expected: skip
+    note: "long-running coding session — codex:rescue territory"
+
+  - id: T21
+    prompt: "Run codex on this codebase to find any unused imports."
+    expected: skip
+    note: "code analysis, text-only"
+
+  - id: T22
+    prompt: "Take a screenshot of the page so I can paste it in Slack."
+    expected: skip
+    note: "screenshot as a verb, no review intent"
+
+  - id: T23
+    prompt: "The screenshot upload failed — can you check the error in the console?"
+    expected: skip
+    note: "screenshot mentioned but not as review target"
+
+  - id: T24
+    prompt: "Codex, write me a Python script to parse JSON logs."
+    expected: skip
+    note: "code generation, no image"
+
+  - id: T25
+    prompt: "Have codex explain the difference between OAuth 2.0 and OAuth 2.1."
+    expected: skip
+    note: "generic question, no artifact"
+
+  - id: T26
+    prompt: "Use codex to look at this log: [2026-05-04 INFO] connection refused..."
+    expected: skip
+    note: "text log, not an image"
+
+  - id: T27
+    prompt: "Generate a Python script to resize images in a directory."
+    expected: skip
+    note: "image-related task but it's *code* generation, not image generation"
+
+  - id: T28
+    prompt: "I have screenshots in /tmp from earlier. Get codex's opinion on my refactor of the auth service."
+    expected: skip
+    note: "PNGs on disk but the actual ask is about a code refactor — unrelated"
+
+  - id: T29
+    prompt: "Run codex exec to lint main.go and surface any vet warnings."
+    expected: skip
+    note: "lint, text-only"
+
+  - id: T30
+    prompt: "Codex, review the JSON I pasted above for schema correctness."
+    expected: skip
+    note: "JSON = text"
+
+  - id: T31
+    prompt: "Use codex to translate this Spanish blog post to English."
+    expected: skip
+    note: "translation, text-only"
+
+  - id: T32
+    prompt: "Have codex add type hints to the parser.py module."
+    expected: skip
+    note: "code, no image"
+
+  - id: T33
+    prompt: "Generate a list of 10 startup ideas for B2B SaaS in fintech."
+    expected: skip
+    note: "neither image nor codex-specific"
+
+  - id: T34
+    prompt: "Codex, summarize this article in 3 bullet points: <article text>"
+    expected: skip
+    note: "text summary"
+
+  - id: T35
+    prompt: "Have codex explain how WebRTC works at the protocol level."
+    expected: skip
+    note: "generic explanation, no artifact"
+
+  # ---------- CLARIFY: ambiguous, should pause ----------
+  - id: T36
+    prompt: "Codex, look at my work and tell me if it's any good."
+    expected: clarify
+    note: "no artifact specified — could be code or visual"
+
+  - id: T37
+    prompt: "Have codex review what I just made."
+    expected: clarify
+    note: "no artifact pointer"
+
+  - id: T38
+    prompt: "Get codex's opinion on the design."
+    expected: clarify
+    note: "design = code architecture or visual UI?"
+
+  - id: T39
+    prompt: "Codex, check this for me."
+    expected: clarify
+    note: "no artifact"
+
+  - id: T40
+    prompt: "Send this to codex."
+    expected: clarify
+    note: "no antecedent"
+
+  - id: T41
+    prompt: "Run codex over my project directory."
+    expected: clarify
+    note: "directory of mixed code+assets — unclear intent"
+
+  - id: T42
+    prompt: "Codex, review the page at https://example.com/pricing."
+    expected: clarify
+    note: "URL not a screenshot — would need to capture first"
+
+  - id: T43
+    prompt: "Have codex look at my screen and suggest improvements."
+    expected: clarify
+    note: "no PNG yet — would need to capture first"
+
+  - id: T44
+    prompt: "Codex critique this UI."
+    expected: clarify
+    note: "UI mentioned but no artifact pointer"
+
+  - id: T45
+    prompt: "Use codex to evaluate the layout."
+    expected: clarify
+    note: "layout could be a screenshot or just CSS source"
+
+  # ---------- EDGE CASES ----------
+  - id: T46
+    prompt: "Edit the image at /tmp/screenshot.png to crop the bottom 200px."
+    expected: clarify
+    note: "image edit but no codex mention — could route to ImageMagick or similar"
+
+  - id: T47
+    prompt: "I have /tmp/foo.png saved. Now help me debug a Python ImportError in main.py."
+    expected: skip
+    note: "PNG on disk but current ask is unrelated text/code work"
+
+  - id: T48
+    prompt: "Use the codex-vision skill."
+    expected: fire
+    note: "explicit invocation by name, no other context — Section A unconditional fire"
+
+  - id: T49
+    prompt: "Generate an image of a cat for my blog post."
+    expected: clarify
+    note: "image generation but no codex mention — could route to other image tools"
+
+  - id: T50
+    prompt: "Codex review the wireframe at /tmp/wireframe.png — focus on information density."
+    expected: fire
+    note: "wireframe (visual artifact) + path + codex"

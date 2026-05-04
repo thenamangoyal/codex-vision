@@ -216,6 +216,47 @@ The exact tool name `image_gen.imagegen` and the natural-language convention com
 - Codex authenticated (`codex login` once)
 - tmux installed if you use `--tmux` mode
 
+## Triggering test (skill robustness)
+
+A skill's YAML `description` is what an autonomous agent reads to decide
+whether to fire on a given user prompt. Loose phrasing fires too eagerly,
+tight phrasing skips legitimate use. To keep `SKILL.md` honest, this repo
+ships a 50-case triggering eval:
+
+- **`tests/triggering/cases.yaml`** — 50 hand-written user prompts:
+  - 15 expected `fire` (path + Codex intent, explicit `/codex-vision`, etc.)
+  - 20 expected `skip` (code review, stack traces, generic Codex queries,
+    long-running sessions, "take a screenshot" as a verb, JSON/log review,
+    PNGs on disk but unrelated current ask, etc.)
+  - 15 expected `clarify` (no artifact specified, URL-only, "look at my
+    screen" with no PNG yet, ambiguous "design" intent, etc.)
+
+- **`scripts/check-triggering.sh`** — runs the eval. Batches every case into
+  a single `codex exec` call along with the live `SKILL.md` and asks Codex
+  to classify each prompt as `FIRE` / `SKIP` / `CLARIFY`. Compares to the
+  expected label and fails on any false positive (expected skip/clarify but
+  got FIRE) or false negative (expected fire but got SKIP/CLARIFY). Soft
+  mismatches between SKIP and CLARIFY are reported but do not fail the
+  build (both mean "did not auto-fire").
+
+```bash
+# One trial (≈ 30 seconds)
+bash scripts/check-triggering.sh
+
+# Stability check — three trials, take majority verdict per case
+bash scripts/check-triggering.sh --runs 3
+
+# Machine-readable output
+bash scripts/check-triggering.sh --json
+```
+
+Current bar: **50/50 hard pass** (zero false positives, zero false negatives)
+across three independent trials as of `v0.3.2`. Re-run after every change to
+the YAML `description` or the **When to invoke** / **When NOT to invoke**
+sections of `SKILL.md`. If the score regresses, tighten the description
+phrasing (or add a counter-example case to `cases.yaml`) until it returns to
+50/50.
+
 ## License
 
 MIT — do whatever you want, no warranty.

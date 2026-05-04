@@ -131,6 +131,25 @@ Verify:
 
 Drop-in fallback (no `npx skills`): `git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision`.
 
+## Triggering test
+
+The triggering eval (`tests/triggering/cases.yaml` + `scripts/check-triggering.sh`)
+benchmarks the gating in this manifest against 50 hand-written user prompts —
+15 should fire, 20 should skip, 15 should clarify. The runner batches all cases
+into one `codex exec` call, parses verdicts, and fails on any false positive
+(expected `skip`/`clarify` but model said FIRE) or false negative (expected
+`fire` but model said SKIP/CLARIFY). Stable at 50/50 across 3 trial runs as of
+v0.3.2. Run with:
+
+```bash
+bash ~/.claude/skills/codex-vision/scripts/check-triggering.sh             # one trial
+bash ~/.claude/skills/codex-vision/scripts/check-triggering.sh --runs 3    # majority over 3
+```
+
+If you change the YAML `description` or the **When to invoke** / **When NOT to
+invoke** sections, re-run the test and tighten phrasing until it returns to
+50/50.
+
 ## Don't
 
 - Don't bypass the `claude-codex-` prefix — it's how the user identifies sessions Claude spawned.
