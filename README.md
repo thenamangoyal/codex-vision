@@ -127,6 +127,19 @@ npx skills add thenamangoyal/codex-vision@v0.3.1 -g -a claude-code -y
 
 Drop the `-g` flag and run inside a repo. The skill lands in `<repo>/.claude/skills/codex-vision/` and only loads for that project.
 
+#### Updating
+
+When this repo ships a new version, pull it down with one command:
+
+```bash
+npx skills update codex-vision           # update only this skill
+npx skills update -g                     # update every globally-installed skill
+```
+
+`update` (alias `upgrade`) re-fetches the package, re-resolves the version, and overwrites the install in place. Re-running the original `add` command also works — `add` is idempotent and replaces an existing install at the same scope. For the `--all` symlink path, updating the single source at `~/.agents/skills/codex-vision/` automatically propagates to every agent's per-tool directory.
+
+If you cloned the repo directly (`git clone …`), update with `cd ~/.claude/skills/codex-vision && git pull`.
+
 #### Verify and uninstall
 
 ```bash
