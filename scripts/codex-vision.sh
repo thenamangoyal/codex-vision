@@ -8,6 +8,11 @@ set -o pipefail
 
 # ---------- locate codex binary ----------
 locate_codex() {
+  # Test hook: set CODEX_VISION_TEST_MISSING=1 to simulate a missing CLI without
+  # actually uninstalling Codex. Used by tests; unset in normal use.
+  if [[ -n "${CODEX_VISION_TEST_MISSING:-}" ]]; then
+    return 1
+  fi
   if command -v codex >/dev/null 2>&1; then
     command -v codex
     return 0
@@ -19,11 +24,41 @@ locate_codex() {
   return 1
 }
 
+print_install_help() {
+  cat >&2 <<'EOF'
+codex-vision needs the OpenAI Codex CLI installed. None was found at:
+  • which codex                                       (anywhere on PATH)
+  • /Applications/Codex.app/Contents/Resources/codex  (macOS Codex app)
+
+Official install — pick one:
+
+  Codex.app (macOS GUI, bundles the CLI inside it):
+      brew install --cask codex                       # via Homebrew
+      https://openai.com/codex/                       # or download the .dmg
+
+  Codex CLI only (no GUI, any platform):
+      npm install -g @openai/codex                    # via npm
+
+After install, authenticate once (opens a browser):
+  codex login
+
+Re-run preflight to confirm:
+  ~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
+
+Upstream: https://github.com/openai/codex
+codex-vision: https://github.com/thenamangoyal/codex-vision
+EOF
+}
+
+# Resolve once; per-mode checks decide whether absence is fatal.
 CODEX_BIN="$(locate_codex || true)"
-if [[ -z "${CODEX_BIN:-}" ]]; then
-  echo "ERROR: codex CLI not found. Install Codex.app or run 'brew install codex' / npm-equivalent. https://github.com/openai/codex" >&2
-  exit 127
-fi
+
+require_codex() {
+  if [[ -z "${CODEX_BIN:-}" ]]; then
+    print_install_help
+    exit 127
+  fi
+}
 
 # ---------- usage ----------
 usage() {
@@ -179,6 +214,7 @@ run_codex() {
 # ---------- mode dispatch ----------
 case "$MODE" in
   review)
+    require_codex
     if [[ ${#POSITIONAL[@]} -lt 2 ]]; then
       echo "ERROR: review needs at least one IMAGE and a PROMPT." >&2; usage; exit 2
     fi
@@ -193,6 +229,7 @@ case "$MODE" in
     ;;
 
   generate)
+    require_codex
     if [[ ${#POSITIONAL[@]} -ne 1 ]]; then
       echo "ERROR: generate needs exactly one PROMPT." >&2; usage; exit 2
     fi
@@ -209,6 +246,7 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     ;;
 
   edit)
+    require_codex
     if [[ ${#POSITIONAL[@]} -ne 2 ]]; then
       echo "ERROR: edit needs exactly IMAGE and PROMPT." >&2; usage; exit 2
     fi
@@ -228,6 +266,18 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
 
   doctor)
     echo "[codex-vision] doctor — preflight checks"
+    if [[ -z "${CODEX_BIN:-}" ]]; then
+      echo "  codex binary : NOT FOUND"
+      if command -v tmux >/dev/null 2>&1; then
+        echo "  tmux         : $(tmux -V)"
+      else
+        echo "  tmux         : NOT FOUND"
+      fi
+      echo "  fixture PNG  : $(dirname "$0")/../tests/fixture.png $(test -f "$(dirname "$0")/../tests/fixture.png" && echo OK || echo MISSING)"
+      echo
+      print_install_help
+      exit 1
+    fi
     echo "  codex binary : $CODEX_BIN"
     echo "  codex version: $("$CODEX_BIN" --version 2>&1 | head -1)"
     if command -v tmux >/dev/null 2>&1; then
@@ -250,6 +300,7 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     ;;
 
   selftest)
+    require_codex
     FIXTURE="$(dirname "$0")/../tests/fixture.png"
     [[ -f "$FIXTURE" ]] || { echo "ERROR: bundled fixture missing at $FIXTURE" >&2; exit 1; }
     echo "[codex-vision] selftest — running review on bundled fixture (320x200, three coloured swatches)"
