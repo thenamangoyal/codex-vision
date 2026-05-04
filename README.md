@@ -1,34 +1,65 @@
 # codex-vision
 
-A Claude Code skill that lets Claude pass images to (and request images from) the OpenAI Codex CLI without writing temp files by hand.
+The new image generation in OpenAI Codex is incredibly good. **codex-vision** is a tiny Claude Code skill (one bash wrapper + a `SKILL.md`) that wires it up so Claude can review a screenshot, generate a UI mock, or edit an image via Codex from one shell command.
 
-## Why
+Three modes, one shell call per artifact: **review · generate · edit**.
 
-Claude Code can run `codex exec` via Bash, but the upstream `codex` CLI's image flag (`-i / --image`) is what actually unlocks Codex's vision features. The companion plugin most people use (`codex-companion.mjs`) doesn't pass `-i` through. This skill is a thin, opinionated wrapper that:
+<video src="https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.mp4" controls muted loop width="800"></video>
 
-- Calls `codex exec -i ...` directly (skipping the companion that drops the flag)
-- Picks predictable session/log names so the user always knows what Claude spawned
-- Adds an opt-in tmux mode for long-running observable runs (`--tmux <name>` → `claude-codex-<name>`)
-- Distinguishes three modes Claude actually uses: review, generate, edit
+> If your GitHub renderer doesn't show the video above, the same thing as a GIF: <https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.gif>
 
-## What it can do
-
-All five images and the critique below were produced by running this skill on a vanilla MacBook in under 90 seconds each. No design tools, no Figma, no manual prompt-stitching — just one shell command per artifact.
-
-### 1 · Sell a redesign with a side-by-side before/after
-
-When you want to argue for a refactor, a single image of before vs after carries more weight than any RFC paragraph. The same skill that generates a fresh mock can render the comparison directly:
+## Install
 
 ```bash
-codex-vision generate "Side-by-side before/after redesign comparison of a developer-tool dashboard, both shown inside identical Chrome browser frames stacked vertically. Top: 'Before — cluttered v1' (busy admin dashboard, tiny tables, gray-on-gray, no whitespace). Bottom: 'After — refined v2' (same data, generous whitespace, three KPI cards, one focused chart, single primary CTA). Both same fictional product 'Console' in nav. 16:10 each, light-cream background." \
-  --out ~/Desktop/console-v1-vs-v2.png
+npx skills add thenamangoyal/codex-vision -g -a claude-code -y
 ```
 
-![Generated before/after redesign](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/redesign_before_after.png)
+That drops the skill into `~/.claude/skills/codex-vision/` and Claude Code auto-loads it. You'll need the [Codex CLI](https://github.com/openai/codex) installed and authenticated once (`codex login`) — the wrapper's `doctor` command surfaces install instructions if it's missing.
 
-### 2 · Propose a mobile feature with a believable iPhone render
+<details>
+<summary>Other install variants — multi-agent symlink, version pin, project-scoped, manual clone</summary>
 
-ASCII wireframes don't convey feel and stock device frames look dated. Generate one inside a current-gen device, ready to paste into Slack:
+**Every coding agent at once** — Claude Code, Cursor, Codex CLI, Gemini CLI. Source written once to `~/.agents/skills/codex-vision/` and **symlinked** into each agent's per-tool dir, so a single `npx skills update` propagates everywhere:
+
+```bash
+npx skills add thenamangoyal/codex-vision -g --all
+```
+
+**Pin a release tag** instead of `main` HEAD:
+
+```bash
+npx skills add thenamangoyal/codex-vision@v0.3.2 -g -a claude-code -y
+```
+
+**Project-scoped** (loads only inside one repo) — drop `-g` and run inside the repo:
+
+```bash
+npx skills add thenamangoyal/codex-vision -a claude-code -y
+```
+
+**Updating** — when a new version ships:
+
+```bash
+npx skills update codex-vision    # this skill only
+npx skills update -g              # every globally-installed skill
+```
+
+`update` is an alias for re-running `add`; both overwrite the install in place. For the multi-agent symlink path, updating the single source at `~/.agents/skills/codex-vision/` propagates to every agent automatically.
+
+**No-`npx` clone**:
+
+```bash
+git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision
+~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
+```
+
+**Uninstall** — `npx skills remove codex-vision` (or `rm -rf ~/.claude/skills/codex-vision/` if you cloned).
+
+</details>
+
+## One killer example — generate
+
+A "Streak" iOS habit-tracker mock inside a current-gen iPhone, in one shell call:
 
 ```bash
 codex-vision generate "Minimalist mobile app screen for a fictional habit-tracker called 'Streak', shown inside a realistic titanium iPhone 15 Pro, viewed straight-on. Clean light theme: greeting, horizontal day-of-week pills with today highlighted, a 'Today' card with a circular progress ring (3/4) and 4 habit rows each with an icon and check, primary 'Add habit' button at bottom. iOS-native typography. Mint-green seamless paper backdrop, soft drop shadow. 9:16 phone aspect inside a 4:5 image, App Store screenshot quality." \
@@ -39,20 +70,52 @@ codex-vision generate "Minimalist mobile app screen for a fictional habit-tracke
   <img src="https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/app_iphone.png" alt="Generated iPhone app mock" width="320" />
 </p>
 
-### 3 · Show a new view inside a real browser frame
+The same skill in the opposite direction: feed any screenshot to `codex-vision review …` and it returns a structured drive-by from Codex (5 prioritized issues + concrete fixes by default).
 
-Browser-framed renders make a 5-line proposal look like a real product decision:
+<details>
+<summary>More examples — pricing page in browser, before/after redesign, architecture diagram, iMac landing-page hero, design critique</summary>
+
+> **What makes a good prompt.** Specify device frame, lighting, background, palette (with hex if you have it), typography, and aspect ratio. Bad prompts make bad images.
+
+### Pricing page in a real browser frame
 
 ```bash
-codex-vision generate "Clean SaaS pricing page mock displayed inside a realistic Chrome browser window, URL bar reading 'app.example.com/pricing'. Centered heading 'Simple, transparent pricing'. Three pricing cards (Hobby \$9, Pro \$29, Team \$79). Pro tier visually elevated with a 'Most popular' label. Below: a 3-question FAQ accordion. Crisp Inter typography, neutral palette with deep-teal accent. 16:10, full browser chrome visible." \
+codex-vision generate "Clean SaaS pricing page mock displayed inside a realistic Chrome browser window, URL bar reading 'app.example.com/pricing'. Centered heading 'Simple, transparent pricing'. Three pricing cards (Hobby \$9, Pro \$29, Team \$79). Pro tier visually elevated with a 'Most popular' label. Crisp Inter typography, neutral palette with deep-teal accent. 16:10, full browser chrome visible." \
   --out ~/Desktop/pricing.png
 ```
 
-![Generated pricing page in browser frame](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/pricing_browser.png)
+![Pricing page](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/pricing_browser.png)
 
-### 4 · Critique an existing UI in 60 seconds
+### Side-by-side before/after redesign
 
-Same skill, opposite direction: feed any screenshot in and ask for a structured drive-by review. Below is the actual `review` output run against the pricing mock from #3 — five prioritized issues with concrete fixes:
+```bash
+codex-vision generate "Side-by-side before/after redesign comparison of a developer-tool dashboard, both shown inside identical Chrome browser frames stacked vertically. Top: 'Before — cluttered v1' (busy admin dashboard, tiny tables, gray-on-gray). Bottom: 'After — refined v2' (same data, generous whitespace, three KPI cards, one focused chart, single primary CTA). 16:10 each, light-cream background." \
+  --out ~/Desktop/v1-vs-v2.png
+```
+
+![Before/after](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/redesign_before_after.png)
+
+### Architecture diagram for a design doc
+
+```bash
+codex-vision generate "Minimalist boxes-and-arrows system architecture diagram: Client at top, API Gateway below it, three services beneath (Auth, Payments, Notifications), and shared Postgres + Redis at bottom. Monochrome on a light cream background. Clean labels, technical-sketch style. 16:10." \
+  --out ~/Desktop/arch.png
+```
+
+![Architecture](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/arch_diagram.png)
+
+### iMac landing-page hero
+
+```bash
+codex-vision generate "High-fidelity SaaS landing page mock displayed inside a 27-inch Apple iMac (silver/aluminum). Dark navy hero with bold left-aligned 'Ship faster with Atlas', a tight subhead, primary coral CTA + outlined secondary, and a floating product UI preview card. 3-column features row below. Off-white canvas, single coral accent, Inter typography, generous whitespace. Soft cream-to-peach gradient backdrop, photoreal display reflection. 16:9, magazine-quality." \
+  --out ~/Desktop/atlas.png
+```
+
+![iMac landing](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/landing_imac.png)
+
+### 60-second design critique
+
+Below is the actual `review` output run against the pricing mock above:
 
 ```bash
 codex-vision review ~/Desktop/pricing.png \
@@ -60,216 +123,49 @@ codex-vision review ~/Desktop/pricing.png \
 ```
 
 > 1. The Pro card dominates by border but the CTA hierarchy is uneven; make Pro's CTA primary and keep Hobby/Team as clearly secondary with consistent button weight.
-> 2. Tier differentiation is weak because features repeat with small deltas; add short tier descriptors under each plan name like "For solo projects," "For growing teams," "For organizations."
-> 3. Pricing is scannable, but feature lists are visually dense; group features by value area or bold the differentiators like storage, users, and support level.
-> 4. Trust is thin before asking for payment; add reassurance near CTAs such as "No credit card required," cancellation terms, security badges, or customer logos.
+> 2. Tier differentiation is weak because features repeat with small deltas; add short tier descriptors under each plan name.
+> 3. Pricing is scannable, but feature lists are visually dense; group features by value area or bold the differentiators.
+> 4. Trust is thin before asking for payment; add reassurance near CTAs ("No credit card required," cancellation terms, security badges).
 > 5. (etc.)
 
-### 5 · Generate a clean architecture diagram for a design doc
-
-Drawing infra diagrams in Figma or Excalidraw eats an hour. First draft from a one-line description is usually 80% there:
-
-```bash
-codex-vision generate "Minimalist boxes-and-arrows system architecture diagram: Client at top, API Gateway below it, three services beneath (Auth, Payments, Notifications), and shared Postgres + Redis at bottom. Monochrome on a light cream background. Clean labels, technical-sketch style. 16:10." \
-  --out ~/Desktop/arch.png
-```
-
-![Generated architecture diagram](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/arch_diagram.png)
-
-### 6 · Pitch a website redesign with an iMac hero mock
-
-You're proposing a new landing page in a Linear ticket or design doc. Hand-wavy descriptions don't sell, but spinning up a Figma mock for an idea you might throw away is overkill. Generate a photoreal device shot in one command — the front-facing iMac framing reads more like a product hero than any laptop angle:
-
-```bash
-codex-vision generate "High-fidelity SaaS landing page mock displayed inside a 27-inch Apple iMac (silver/aluminum), viewed front-on with the screen filling most of the frame. Dark navy hero with bold left-aligned 'Ship faster with Atlas', a tight subhead, primary coral CTA + outlined secondary, and a floating product UI preview card in the lower hero. 3-column features row below. Top nav with the Atlas wordmark, 5 small links, and a Sign-in button. Off-white canvas, single coral accent, Inter typography, generous whitespace. Soft cream-to-peach gradient backdrop, photoreal display reflection, soft top-left key light, minimal stand visible at the bottom. 16:9, magazine-quality." \
-  --out ~/Desktop/atlas-landing.png
-```
-
-![Generated iMac landing-page mock](https://raw.githubusercontent.com/thenamangoyal/codex-vision/assets/demos/landing_imac.png)
-
-Drop the PNG straight into the ticket — reviewers immediately get the vibe.
-
-> **What makes a good prompt.** Specify device frame, lighting, background, palette (with hex if you have it), typography, and aspect ratio. The difference between "a UI for a habit tracker" and the prompt above is the difference between a generic stock-image render and a portfolio-grade mock. Be opinionated — bad prompts make bad images.
-
-## Install
-
-### Recommended: via [`npx skills`](https://skills.sh)
-
-#### Claude Code only
-
-Drops the skill straight into `~/.claude/skills/codex-vision/` and nowhere else:
-
-```bash
-npx skills add thenamangoyal/codex-vision -g -a claude-code -y
-```
-
-Flags: `-g` global (user-level), `-a claude-code` only target Claude Code's skills directory, `-y` skip confirmation prompts.
-
-#### Every agent at once
-
-Installs into Claude Code, Cursor, Codex CLI, Gemini CLI, and any other agent `npx skills` knows about. The skill source is written once to `~/.agents/skills/codex-vision/` and **symlinked** into each agent's per-tool skills directory (`~/.claude/skills/`, `~/.codex/skills/`, etc.), so a single `npx skills update` propagates everywhere:
-
-```bash
-npx skills add thenamangoyal/codex-vision -g --all
-```
-
-`--all` is shorthand for `-s '*' -a '*' -y`. To pick a subset of agents, pass `-a claude-code,cursor` instead of `--all`.
-
-#### Pin to a specific version
-
-Append `@<tag>` to install a release tag instead of `main` HEAD:
-
-```bash
-npx skills add thenamangoyal/codex-vision@v0.3.1 -g -a claude-code -y
-```
-
-#### Project-scoped (instead of user-level)
-
-Drop the `-g` flag and run inside a repo. The skill lands in `<repo>/.claude/skills/codex-vision/` and only loads for that project.
-
-#### Updating
-
-When this repo ships a new version, pull it down with one command:
-
-```bash
-npx skills update codex-vision           # update only this skill
-npx skills update -g                     # update every globally-installed skill
-```
-
-`update` (alias `upgrade`) re-fetches the package, re-resolves the version, and overwrites the install in place. Re-running the original `add` command also works — `add` is idempotent and replaces an existing install at the same scope. For the `--all` symlink path, updating the single source at `~/.agents/skills/codex-vision/` automatically propagates to every agent's per-tool directory.
-
-If you cloned the repo directly (`git clone …`), update with `cd ~/.claude/skills/codex-vision && git pull`.
-
-#### Verify and uninstall
-
-```bash
-~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
-~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
-npx skills remove codex-vision           # remove from current scope
-npx skills remove codex-vision -g --all  # remove from every agent globally
-```
-
-### Alternative: direct git clone
-
-If you'd rather skip `npx skills`:
-
-```bash
-git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision
-~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
-~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
-```
-
-`~/.claude/skills/` is the user-level skills directory, so the skill auto-loads cross-project.
-
-To uninstall:
-
-```bash
-rm -rf ~/.claude/skills/codex-vision
-```
-
-### Why "skill" not "plugin"
-
-A Claude Code _plugin_ is the wrapper format for bundles that include MCP servers, agents, slash commands, _and_ skills. codex-vision is just a skill — a single shell script with a `SKILL.md` — so the plugin layer was overhead. The `npx skills` registry handles distribution directly, and the skill works in every coding agent that reads from `~/.claude/skills/` (or symlinks to it).
-
-## Usage
-
-The skill activates whenever a user prompt mentions Codex + an image, or explicitly invokes `/codex-vision`. Internally it shells out to:
-
-```bash
-~/.claude/skills/codex-vision/scripts/codex-vision.sh <mode> [options] <args>
-```
-
-### Modes
-
-| Mode | Args | Use case |
-|------|------|----------|
-| `review` | `IMAGE [IMAGE...] PROMPT` | Have Codex look at one or more screenshots and report back |
-| `generate` | `PROMPT` | Have Codex generate an image via its `image_gen.imagegen` tool |
-| `edit` | `IMAGE PROMPT` | Have Codex edit an image via its `image_gen.imagegen` tool |
-
-### Options
-
-```
---out PATH         Output path for generated/edited image (default /tmp/codex-vision-out/<slug>-<ts>.png)
---tmux NAME        Run in claude-codex-<NAME>; user attaches with `tmux attach -t claude-codex-<NAME>`
---keep             Keep tmux session + log after completion
---model MODEL      Pass to `codex exec --model`
-```
-
-### Examples
-
-```bash
-# Quick review
-codex-vision review screenshot.png "what's wrong here?"
-
-# Generate
-codex-vision generate "isometric GRPO group diagram" --out /tmp/grpo.png
-
-# Edit
-codex-vision edit raw.png "remove the red overlay" --out /tmp/clean.png
-
-# Long-running, watchable
-codex-vision review screenshot.png "deep walk-through of every issue" --tmux ui-review
-# user runs: tmux attach -t claude-codex-ui-review
-```
+</details>
 
 ## How it routes
 
-| Operation | What it triggers in Codex |
-|-----------|---------------------------|
-| `review`  | `codex exec -i <png>` → Codex's `functions.view_image` tool |
-| `generate`| Prompt: `"Use the built-in image_gen tool to generate ... Save to ..."` |
-| `edit`    | `codex exec -i <png>` + prompt: `"Use the built-in image_gen tool to edit the attached image..."` |
+| Mode | What it triggers in Codex |
+|------|---------------------------|
+| `review IMAGE [IMAGE…] PROMPT` | `codex exec -i <png> "<prompt>"` → Codex's `functions.view_image` tool |
+| `generate PROMPT` | wraps prompt as `"Use the built-in image_gen tool to generate … save to <out>"` |
+| `edit IMAGE PROMPT` | `codex exec -i <png>` + `"Use the built-in image_gen tool to edit the attached image: <prompt>"` |
 
-The exact tool name `image_gen.imagegen` and the natural-language convention come straight from Codex's own self-report. There is no `@image` or `/image` prefix — phrasing alone routes to the tool.
+The wrapper picks predictable session and log paths, defaults images to `/tmp/codex-vision-out/`, and prefixes any tmux session it spawns with `claude-codex-` so the user can inventory anything Claude started (`tmux ls | grep claude-codex-`).
+
+`codex-vision doctor` runs preflight checks — codex binary, version, tmux, fixture, and an auth probe — and prints copy-paste install instructions if Codex isn't on the box.
+
+## Robustness — the trigger fires when it should
+
+Skill `description` fields are read by autonomous agents to decide whether to auto-invoke. Loose phrasing fires when it shouldn't; tight phrasing skips legitimate use. The repo treats `SKILL.md` as code under test:
+
+- `tests/triggering/cases.yaml` — 50 hand-written user prompts (15 fire / 20 skip / 15 clarify), spanning happy paths, near-miss text-only requests, ambiguous "use codex" phrasing, and stale-screenshot decoys.
+- `scripts/check-triggering.sh` — batches all 50 cases into a single `codex exec` call, parses verdicts, fails on any false positive (expected `skip`/`clarify`, got `FIRE`) or false negative (expected `fire`, got `SKIP`/`CLARIFY`).
+
+```bash
+bash scripts/check-triggering.sh --runs 3
+# [check-triggering] 50/50 passed
+#   false positives (expected skip/clarify, got FIRE): 0
+#   false negatives (expected fire, got SKIP/CLARIFY): 0
+```
+
+**Current bar: 50/50 hard pass across three independent trials at `v0.3.2`.** Re-run after every edit to `description` or the *When to invoke / When NOT to invoke* sections.
 
 ## Prerequisites
 
-- Codex CLI installed (Codex.app on macOS, or `codex` on PATH)
-- Codex authenticated (`codex login` once)
-- tmux installed if you use `--tmux` mode
+- macOS (full support) — Linux / WSL works if `codex` is on PATH.
+- [Codex CLI](https://github.com/openai/codex) installed + authenticated (`codex login`).
+- `tmux` if you use `--tmux <name>` mode.
 
-## Triggering test (skill robustness)
-
-A skill's YAML `description` is what an autonomous agent reads to decide
-whether to fire on a given user prompt. Loose phrasing fires too eagerly,
-tight phrasing skips legitimate use. To keep `SKILL.md` honest, this repo
-ships a 50-case triggering eval:
-
-- **`tests/triggering/cases.yaml`** — 50 hand-written user prompts:
-  - 15 expected `fire` (path + Codex intent, explicit `/codex-vision`, etc.)
-  - 20 expected `skip` (code review, stack traces, generic Codex queries,
-    long-running sessions, "take a screenshot" as a verb, JSON/log review,
-    PNGs on disk but unrelated current ask, etc.)
-  - 15 expected `clarify` (no artifact specified, URL-only, "look at my
-    screen" with no PNG yet, ambiguous "design" intent, etc.)
-
-- **`scripts/check-triggering.sh`** — runs the eval. Batches every case into
-  a single `codex exec` call along with the live `SKILL.md` and asks Codex
-  to classify each prompt as `FIRE` / `SKIP` / `CLARIFY`. Compares to the
-  expected label and fails on any false positive (expected skip/clarify but
-  got FIRE) or false negative (expected fire but got SKIP/CLARIFY). Soft
-  mismatches between SKIP and CLARIFY are reported but do not fail the
-  build (both mean "did not auto-fire").
-
-```bash
-# One trial (≈ 30 seconds)
-bash scripts/check-triggering.sh
-
-# Stability check — three trials, take majority verdict per case
-bash scripts/check-triggering.sh --runs 3
-
-# Machine-readable output
-bash scripts/check-triggering.sh --json
-```
-
-Current bar: **50/50 hard pass** (zero false positives, zero false negatives)
-across three independent trials as of `v0.3.2`. Re-run after every change to
-the YAML `description` or the **When to invoke** / **When NOT to invoke**
-sections of `SKILL.md`. If the score regresses, tighten the description
-phrasing (or add a counter-example case to `cases.yaml`) until it returns to
-50/50.
+`codex-vision doctor` checks all of the above and prints actionable install instructions if anything is missing.
 
 ## License
 
-MIT — do whatever you want, no warranty.
+MIT.
