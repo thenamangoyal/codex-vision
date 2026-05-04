@@ -1,6 +1,6 @@
 ---
 name: codex-vision
-description: Use when the user wants Claude to send images to OpenAI Codex (review screenshots, generate images via Codex's image_gen tool, edit images), or explicitly invokes "codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch.
+description: Use when the user wants Claude to send images to OpenAI Codex (review screenshots, generate images via Codex's image_gen tool, edit images), or explicitly invokes "codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch. SKIP when the task is text-only (code review/debugging/generation, "use codex" without an image) — call `codex exec` directly via Bash, or use the `codex:rescue` skill for long-running text work. Do NOT trigger on the word "codex" alone; require explicit image / screenshot / mock context.
 ---
 
 # codex-vision
@@ -9,11 +9,26 @@ Wraps the OpenAI Codex CLI (the upstream binary at `/Applications/Codex.app/Cont
 
 ## When to invoke this skill
 
+All triggers require **image context** — a real PNG/JPG path, an explicit screenshot reference, or an explicit mention of generating/editing an image. The word "codex" alone is **not** a trigger.
+
 - User asks Claude to "have Codex look at this screenshot" / "use codex on this PNG"
 - User asks "generate an image with Codex" / "use Codex's image tool"
 - User asks Codex to edit / annotate / clean up an image file
 - User explicitly says "use codex-vision" or "/codex-vision"
-- A screenshot exists on disk (e.g. saved by `mcp__claude-in-chrome__computer` with `save_to_disk: true`) and the user wants a second-opinion analysis from Codex
+- A screenshot was just produced (e.g. saved by `mcp__claude-in-chrome__computer` with `save_to_disk: true`) **AND** the user explicitly asks for a Codex-side review of *that* image — not just any follow-up Codex task
+
+## When NOT to invoke this skill
+
+Default to a plain `codex exec` (or the `codex:rescue` skill) when:
+
+- User asks Codex to **review code, a PR, a diff, a function** — text-only, no image. The `-i` flag is irrelevant.
+- User asks Codex to **write, refactor, or debug code** — call `codex exec "<prompt>"` directly.
+- User asks Codex a **generic question** ("ask codex what it thinks of X", "have codex explain Y") with no image attached.
+- User wants a **long-running coding session** with Codex — use `codex:rescue` for that.
+- User mentions "codex" but the actual artifact is text (logs, stack trace, JSON, code) — codex-vision adds nothing; the `image_gen` tool prompt would mislead the model.
+- User has a screenshot on disk **but the current ask is unrelated** to that screenshot — don't auto-fire just because a PNG exists in `/tmp/`.
+
+If the user's intent is ambiguous ("Codex, look at my work"), pause and ask whether the artifact is an image or text before invoking either path.
 
 ## How to invoke
 
