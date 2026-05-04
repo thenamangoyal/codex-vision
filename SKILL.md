@@ -1,6 +1,6 @@
 ---
 name: codex-vision
-description: Use when the user wants Claude to send images to OpenAI Codex (review screenshots, generate images via Codex's image_gen tool, edit images), or explicitly invokes "codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch. SKIP when the task is text-only (code review/debugging/generation, "use codex" without an image) — call `codex exec` directly via Bash, or use the `codex:rescue` skill for long-running text work. Do NOT trigger on the word "codex" alone; require explicit image / screenshot / mock context.
+description: Use when the user wants Claude to send images to OpenAI Codex — Codex-side review of an existing screenshot/mockup/wireframe, generate an image via Codex's image_gen tool, or edit an existing image via Codex — or explicitly invokes "codex-vision" / "/codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch. SKIP when the task is text-only (code review/debugging/generation, "use codex" without an image) — call `codex exec` directly via Bash, or use the `codex:rescue` skill for long-running text work. The bare word "codex" is not a trigger; the bare word "screenshot" is not a trigger (e.g. "take a screenshot", "screenshot failed"). For generate/edit, require explicit Codex intent unless the user invoked the skill by name. Explicit `/codex-vision` invocation overrides every other gating rule below.
 ---
 
 # codex-vision
@@ -9,13 +9,16 @@ Wraps the OpenAI Codex CLI (the upstream binary at `/Applications/Codex.app/Cont
 
 ## When to invoke this skill
 
-All triggers require **image context** — a real PNG/JPG path, an explicit screenshot reference, or an explicit mention of generating/editing an image. The word "codex" alone is **not** a trigger.
+Two ways to qualify:
 
-- User asks Claude to "have Codex look at this screenshot" / "use codex on this PNG"
-- User asks "generate an image with Codex" / "use Codex's image tool"
-- User asks Codex to edit / annotate / clean up an image file
-- User explicitly says "use codex-vision" or "/codex-vision"
-- A screenshot was just produced (e.g. saved by `mcp__claude-in-chrome__computer` with `save_to_disk: true`) **AND** the user explicitly asks for a Codex-side review of *that* image — not just any follow-up Codex task
+**A. Explicit invocation — fires unconditionally.** Anything matching `use codex-vision`, `/codex-vision`, or a direct shell call to the wrapper. Image context is not required (the user is naming the skill on purpose).
+
+**B. Image-intent triggers — require *image context AND Codex intent*.** Image context is one of: an existing image path/attachment (PNG, JPG, JPEG, WebP, GIF), a freshly produced screenshot the user is now referencing, or an explicit ask to generate/edit a visual artifact (mockup, wireframe, design image). The word "codex" alone is not enough; bare "screenshot" without a target file is not enough.
+
+- User asks Claude to **have Codex look at** a specific screenshot or PNG/JPG path on disk → `review`.
+- User asks Codex to **generate an image / mockup / wireframe / device-frame render** (Codex intent must be explicit — "generate a mock" alone routes to other tools) → `generate`.
+- User asks Codex to **edit / annotate / clean up an existing image file** (path required) → `edit`.
+- A screenshot was just produced (e.g. saved by `mcp__claude-in-chrome__computer` with `save_to_disk: true`) **AND** the user explicitly asks for a Codex-side review of *that* image — not just any follow-up Codex task that happens after the screenshot.
 
 ## When NOT to invoke this skill
 
