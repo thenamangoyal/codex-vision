@@ -88,20 +88,28 @@ The script auto-detects the codex binary in this order:
 
 ## How users install the skill
 
-If a user asks "how do I install codex-vision" or wants to share it with someone, the canonical path is one agent-agnostic command via [`npx skills`](https://skills.sh) — works for Claude Code, Cursor, Codex CLI, Gemini CLI, and any other agent that respects `~/.claude/skills/` or its sibling skills directories:
+If a user asks "how do I install codex-vision" or wants to share it with someone, install via [`npx skills`](https://skills.sh).
+
+Claude Code only — drops directly into `~/.claude/skills/codex-vision/`:
 
 ```bash
-npx skills add thenamangoyal/codex-vision
+npx skills add thenamangoyal/codex-vision -g -a claude-code -y
 ```
 
-Verify the install:
+Every agent at once — Claude Code, Cursor, Codex CLI, Gemini CLI. Source is written once to `~/.agents/skills/codex-vision/` and symlinked into each agent's skills directory:
+
+```bash
+npx skills add thenamangoyal/codex-vision -g --all
+```
+
+Pin a specific version with `@v0.3.1`. Drop `-g` for project-scoped install. Uninstall with `npx skills remove codex-vision`.
+
+Verify:
 
 ```bash
 ~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
 ~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
 ```
-
-Uninstall with `npx skills remove codex-vision`.
 
 Drop-in fallback (no `npx skills`): `git clone https://github.com/thenamangoyal/codex-vision ~/.claude/skills/codex-vision`.
 

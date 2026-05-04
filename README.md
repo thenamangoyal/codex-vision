@@ -95,23 +95,45 @@ Drop the PNG straight into the ticket — reviewers immediately get the vibe.
 
 ### Recommended: via [`npx skills`](https://skills.sh)
 
-One command, agent-agnostic — installs into Claude Code, Cursor, Codex, Gemini CLI, and any other agent that respects `~/.claude/skills/` or its sibling directories:
+#### Claude Code only
+
+Drops the skill straight into `~/.claude/skills/codex-vision/` and nowhere else:
 
 ```bash
-npx skills add thenamangoyal/codex-vision
+npx skills add thenamangoyal/codex-vision -g -a claude-code -y
 ```
 
-Verify the install:
+Flags: `-g` global (user-level), `-a claude-code` only target Claude Code's skills directory, `-y` skip confirmation prompts.
+
+#### Every agent at once
+
+Installs into Claude Code, Cursor, Codex CLI, Gemini CLI, and any other agent `npx skills` knows about. The skill source is written once to `~/.agents/skills/codex-vision/` and **symlinked** into each agent's per-tool skills directory (`~/.claude/skills/`, `~/.codex/skills/`, etc.), so a single `npx skills update` propagates everywhere:
+
+```bash
+npx skills add thenamangoyal/codex-vision -g --all
+```
+
+`--all` is shorthand for `-s '*' -a '*' -y`. To pick a subset of agents, pass `-a claude-code,cursor` instead of `--all`.
+
+#### Pin to a specific version
+
+Append `@<tag>` to install a release tag instead of `main` HEAD:
+
+```bash
+npx skills add thenamangoyal/codex-vision@v0.3.1 -g -a claude-code -y
+```
+
+#### Project-scoped (instead of user-level)
+
+Drop the `-g` flag and run inside a repo. The skill lands in `<repo>/.claude/skills/codex-vision/` and only loads for that project.
+
+#### Verify and uninstall
 
 ```bash
 ~/.claude/skills/codex-vision/scripts/codex-vision.sh doctor
 ~/.claude/skills/codex-vision/scripts/codex-vision.sh selftest
-```
-
-To uninstall:
-
-```bash
-npx skills remove codex-vision
+npx skills remove codex-vision           # remove from current scope
+npx skills remove codex-vision -g --all  # remove from every agent globally
 ```
 
 ### Alternative: direct git clone
