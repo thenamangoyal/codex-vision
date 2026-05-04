@@ -4,9 +4,13 @@ The new image generation in OpenAI Codex is incredibly good. **codex-vision** is
 
 Three modes, one shell call per artifact: **review · generate · edit**.
 
-<video src="https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.mp4" controls muted loop width="800"></video>
-
-> If your GitHub renderer doesn't show the video above, the same thing as a GIF: <https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.gif>
+<p align="center">
+  <a href="https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.mp4">
+    <img src="https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.gif" alt="codex-vision demo loop — three modes, one shell command each" width="900" />
+  </a>
+  <br/>
+  <sub>▶ Live loop. <a href="https://github.com/thenamangoyal/codex-vision/releases/download/v0.3.2/codex-vision-demo.mp4">Download the 4.3 MB MP4</a> (24 s) for sound-free / higher-fidelity playback.</sub>
+</p>
 
 ## Install
 
