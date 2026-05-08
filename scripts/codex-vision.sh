@@ -178,17 +178,29 @@ run_codex() {
 
   if [[ -n "$TMUX_NAME" ]]; then
     local session
-    session="claude-codex-$(unique_session_name "claude-codex-$(slugify "$TMUX_NAME")" | sed 's/^claude-codex-//')"
-    # ^ unique_session_name returns full name; reconstruct cleanly:
     session="$(unique_session_name "claude-codex-$(slugify "$TMUX_NAME")")"
     local log="/tmp/${session}.log"
+    local runner="/tmp/${session}.runner.sh"
     : > "$log"
 
-    # Run codex inside tmux, tee output to the log.
-    # `printf %q` quotes each arg safely for the shell tmux will run.
-    local cmd
-    cmd="$(printf '%q ' "$CODEX_BIN" "${args[@]}")"
-    tmux new-session -d -s "$session" "bash -lc '${cmd} 2>&1 | tee ${log}; echo --- codex-vision done ---'"
+    # Build a runner script that holds the codex command in a bash array.
+    # We can't safely embed `printf %q` output inside `bash -lc '…'` — a single
+    # quote in a prompt (e.g. "Papa's") expands to `\'` which terminates the
+    # outer single-quoted string and silently corrupts the run. Writing the
+    # quoted args to a script file removes that nesting hazard entirely.
+    {
+      echo '#!/bin/bash'
+      printf 'CMD=('
+      printf ' %q' "$CODEX_BIN" "${args[@]}"
+      echo ')'
+      echo 'exec "${CMD[@]}"'
+    } > "$runner"
+    chmod +x "$runner"
+
+    # The shell command tmux runs only references slugified paths (no quoting
+    # hazards) and the runner — which has the codex args baked in.
+    tmux new-session -d -s "$session" \
+      "bash -lc '\"$runner\" 2>&1 | tee \"$log\"; echo --- codex-vision done --- | tee -a \"$log\"'"
 
     echo "[codex-vision] tmux session  : $session"
     echo "[codex-vision] attach with   : tmux attach -t $session"
@@ -204,7 +216,7 @@ run_codex() {
 
     if [[ "$KEEP" -eq 0 ]]; then
       tmux kill-session -t "$session" 2>/dev/null || true
-      rm -f "$log"
+      rm -f "$log" "$runner"
     fi
   else
     "$CODEX_BIN" "${args[@]}"
