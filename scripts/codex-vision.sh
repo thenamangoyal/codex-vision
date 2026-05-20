@@ -80,7 +80,20 @@ OPTIONS
                             Logs to /tmp/claude-codex-NAME.log
   --keep                    Keep tmux session + log after completion (default: clean up).
   --model MODEL             Pass to `codex exec --model MODEL`.
+  --resume UUID             Resume a specific codex session by UUID.
+  --resume-last-vision      Resume the most recent codex-vision session
+                            (cached at ~/.claude/skills/codex-vision/.last-session-uuid).
+  --fresh                   Force a new session even if the prompt looks like
+                            a follow-up (overrides the resume heuristic).
   -h | --help               This help.
+
+SESSION CONTINUATION
+  Without any flag, codex-vision starts a fresh codex session and caches the
+  resulting UUID. If your next prompt contains follow-up phrasing — "continue",
+  "iterate", "now also", "now add", "again with", "based on the previous",
+  "refine", "tweak", etc. — the wrapper auto-resumes the cached session so
+  context stays warm. Use --fresh to opt out, --resume <UUID> to target a
+  specific session, or --resume-last-vision to force-resume the cache.
 
 EXAMPLES
   codex-vision review /tmp/ui.png "What's wrong with this layout?"
@@ -117,6 +130,9 @@ OUT_PATH=""
 TMUX_NAME=""
 KEEP=0
 MODEL="gpt-5.5"
+RESUME_UUID=""           # set by --resume <UUID>
+RESUME_LAST_VISION=0     # set by --resume-last-vision
+FRESH=0                  # set by --fresh — override heuristic
 POSITIONAL=()
 
 while [[ $# -gt 0 ]]; do
@@ -125,11 +141,124 @@ while [[ $# -gt 0 ]]; do
     --tmux) TMUX_NAME="${2:-}"; shift 2 ;;
     --keep) KEEP=1; shift ;;
     --model) MODEL="${2:-}"; shift 2 ;;
+    --resume) RESUME_UUID="${2:-}"; shift 2 ;;
+    --resume-last-vision) RESUME_LAST_VISION=1; shift ;;
+    --fresh) FRESH=1; shift ;;
     -h|--help) usage; exit 0 ;;
     --) shift; while [[ $# -gt 0 ]]; do POSITIONAL+=("$1"); shift; done ;;
     *) POSITIONAL+=("$1"); shift ;;
   esac
 done
+
+# ---------- session-continuation state ----------
+LAST_VISION_FILE="$(dirname "$0")/../.last-session-uuid"
+CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+
+# Heuristic: does the prompt look like a follow-up?
+# We pick phrasings that strongly imply "build on the prior turn":
+# continue, follow up, iterate, based on the previous, again with, now also,
+# now add, still, refine, tweak, also add. Returns 0 (match) / 1 (no match).
+prompt_looks_like_followup() {
+  local p="$1"
+  # Case-insensitive substring scan with bash 3.2 (no [[ =~ ]] flag for icase).
+  local lower
+  lower="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
+  local phrase
+  for phrase in \
+      "continue" \
+      "follow up" \
+      "follow-up" \
+      "iterate" \
+      "based on the previous" \
+      "based on previous" \
+      "again with" \
+      "now also" \
+      "now add" \
+      "also add" \
+      "refine" \
+      "tweak" \
+      "as before" \
+      "same image" \
+      "same one" \
+      "keep going"
+  do
+    case "$lower" in
+      *"$phrase"*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# Read the cached last-vision UUID (if any). Empty stdout if no file or empty.
+read_last_vision_uuid() {
+  if [[ -f "$LAST_VISION_FILE" ]]; then
+    # Strip whitespace; the file is one line.
+    tr -d '[:space:]' < "$LAST_VISION_FILE"
+  fi
+}
+
+# Find the newest session rollout file under ~/.codex/sessions/ and pull its
+# UUID from the filename. Used right after a fresh `codex exec` to capture
+# the session id we just created.
+#
+# Filename shape:
+#   rollout-2026-05-20T00-28-08-019e45e1-aaaa-77b3-9701-1c092aa1f8ae.jsonl
+# UUID is everything between the trailing "<HH-MM-SS>-" and ".jsonl".
+newest_session_uuid() {
+  local newest
+  # macOS `find -printf` is unavailable; use stat -f instead. Sort by mtime desc.
+  newest="$(find "$CODEX_SESSIONS_DIR" -type f -name 'rollout-*.jsonl' 2>/dev/null \
+    | xargs stat -f '%m %N' 2>/dev/null \
+    | sort -rn \
+    | head -1 \
+    | awk '{ $1=""; sub(/^ /,""); print }')"
+  [[ -z "$newest" ]] && return 1
+  # Extract the trailing UUID. UUID is 36 chars: 8-4-4-4-12 hex with dashes.
+  basename "$newest" \
+    | sed -E 's/^rollout-.*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/\1/'
+}
+
+# Write a UUID to .last-session-uuid (creates file if needed). Silent on empty.
+write_last_vision_uuid() {
+  local uuid="$1"
+  [[ -z "$uuid" ]] && return 0
+  printf '%s\n' "$uuid" > "$LAST_VISION_FILE"
+}
+
+# Resolve final resume target. Sets RESUME_TARGET (UUID or empty).
+#   --fresh                 → empty (force new)
+#   --resume UUID           → that UUID
+#   --resume-last-vision    → cached UUID (fail if cache empty)
+#   no flag + heuristic hit → cached UUID (silently fall through if empty)
+#   no flag + no heuristic  → empty
+resolve_resume_target() {
+  local prompt_for_heuristic="$1"
+  RESUME_TARGET=""
+  if [[ "$FRESH" -eq 1 ]]; then
+    return 0
+  fi
+  if [[ -n "$RESUME_UUID" ]]; then
+    RESUME_TARGET="$RESUME_UUID"
+    return 0
+  fi
+  if [[ "$RESUME_LAST_VISION" -eq 1 ]]; then
+    RESUME_TARGET="$(read_last_vision_uuid)"
+    if [[ -z "$RESUME_TARGET" ]]; then
+      echo "ERROR: --resume-last-vision passed but no cached session at $LAST_VISION_FILE" >&2
+      exit 2
+    fi
+    return 0
+  fi
+  # Heuristic — only resume if (a) phrasing looks like a follow-up AND (b) we
+  # have a cached uuid to resume into. Otherwise stay silent and run fresh.
+  if [[ -n "$prompt_for_heuristic" ]] && prompt_looks_like_followup "$prompt_for_heuristic"; then
+    local cached
+    cached="$(read_last_vision_uuid)"
+    if [[ -n "$cached" ]]; then
+      RESUME_TARGET="$cached"
+    fi
+  fi
+}
 
 # ---------- helpers ----------
 slugify() {
@@ -156,15 +285,31 @@ ensure_out_path() {
 
 run_codex() {
   # All input goes through one entrypoint so tmux-mode and direct-mode share a code path.
-  local args=("exec" "--skip-git-repo-check")
+  #
+  # Two subcommands:
+  #   * `codex exec` — fresh session (RESUME_TARGET empty)
+  #   * `codex exec resume <UUID>` — continue an existing session
+  # Both accept the same shared flags below, so we build the prefix once.
+  local args
+  if [[ -n "${RESUME_TARGET:-}" ]]; then
+    args=("exec" "resume" "$RESUME_TARGET" "--skip-git-repo-check")
+    echo "[codex-vision] resuming session: $RESUME_TARGET" >&2
+  else
+    args=("exec" "--skip-git-repo-check")
+  fi
   # `generate` and `edit` need to write the produced image to OUT_PATH.
   # codex defaults to read-only sandbox; switch to workspace-write AND
   # set the workspace (-C) to the OUT_PATH's parent directory, since
   # workspace-write only allows writes inside the workspace, $TMPDIR, and
   # ~/.codex/memories — not arbitrary paths under $HOME.
   if [[ "$MODE" == "generate" || "$MODE" == "edit" ]]; then
-    args+=("--sandbox" "workspace-write")
-    args+=("-C" "$(dirname "$OUT_PATH")")
+    # `codex exec resume` does NOT accept --sandbox / -C flags. They are
+    # already baked into the resumed session's config. Only the fresh path
+    # passes them.
+    if [[ -z "${RESUME_TARGET:-}" ]]; then
+      args+=("--sandbox" "workspace-write")
+      args+=("-C" "$(dirname "$OUT_PATH")")
+    fi
   fi
   [[ -n "$MODEL" ]] && args+=("--model" "$MODEL")
   # bash 3.2: ${IMAGES[@]:-} is unreliable on empty arrays under set -u.
@@ -221,6 +366,26 @@ run_codex() {
   else
     "$CODEX_BIN" "${args[@]}"
   fi
+
+  # ---- record session UUID for future --resume-last-vision / heuristic ----
+  # Strategy:
+  #   * If we just RESUMED a session, codex reuses the same UUID — keep the
+  #     cached one so subsequent follow-ups thread through it too.
+  #   * If we ran fresh, scan ~/.codex/sessions and pick the newest rollout
+  #     filename. That UUID is what we want to cache.
+  # We do not gate on exit status — even partial runs persist a rollout, and
+  # caching it is cheap; if the call failed hard there is no new file so the
+  # cache stays correct.
+  if [[ -n "${RESUME_TARGET:-}" ]]; then
+    write_last_vision_uuid "$RESUME_TARGET"
+  else
+    local _new_uuid
+    _new_uuid="$(newest_session_uuid 2>/dev/null || true)"
+    if [[ -n "$_new_uuid" ]]; then
+      write_last_vision_uuid "$_new_uuid"
+      echo "[codex-vision] session id: $_new_uuid (cached for --resume-last-vision)" >&2
+    fi
+  fi
 }
 
 # ---------- mode dispatch ----------
@@ -237,6 +402,7 @@ case "$MODE" in
     for img in "${IMAGES[@]}"; do
       [[ -f "$img" ]] || { echo "ERROR: image not found: $img" >&2; exit 2; }
     done
+    resolve_resume_target "$PROMPT"
     run_codex
     ;;
 
@@ -253,6 +419,8 @@ After image_gen finishes, the resulting PNG will be at \`~/.codex/generated_imag
 
 Then on its own line print exactly the saved path, followed by a one-sentence summary of what you drew."
     IMAGES=()
+    # Apply heuristic against the user's prompt, not the wrapped instructions.
+    resolve_resume_target "$USER_PROMPT"
     run_codex
     [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
     ;;
@@ -272,6 +440,7 @@ After image_gen finishes, the edited PNG will be at \`~/.codex/generated_images/
 
 Then on its own line print exactly the saved path, followed by a one-sentence summary of what changed."
     IMAGES=("$SRC_IMAGE")
+    resolve_resume_target "$USER_PROMPT"
     run_codex
     [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
     ;;
@@ -318,6 +487,7 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     echo "[codex-vision] selftest — running review on bundled fixture (320x200, three coloured swatches)"
     PROMPT="In one short line, list the three solid-coloured rectangles you see at the top of this image, left to right, by their dominant hue (e.g. red, green, blue). Then on a second line write OK if you can see them, FAIL if you cannot."
     IMAGES=("$FIXTURE")
+    resolve_resume_target "$PROMPT"
     run_codex
     echo "[codex-vision] selftest complete. Visually verify Codex reported: red/dark-red, green/dark-green, gold/yellow → OK"
     ;;

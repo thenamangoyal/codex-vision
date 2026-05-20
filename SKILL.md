@@ -57,6 +57,32 @@ The skill is a single shell wrapper. From the Bash tool:
 | `--tmux NAME` | run inside `claude-codex-<NAME>` tmux session; user can `tmux attach -t claude-codex-<NAME>` to watch live |
 | `--keep` | leave tmux session + log after completion (default: clean up) |
 | `--model MODEL` | pass to `codex exec --model` (e.g. `gpt-5-codex`) |
+| `--resume UUID` | resume a specific codex session by id; useful when the caller already knows the UUID |
+| `--resume-last-vision` | force-resume the most recent codex-vision session (cached at `~/.claude/skills/codex-vision/.last-session-uuid`) |
+| `--fresh` | force a brand-new codex session even if the prompt's phrasing would trip the smart-resume heuristic |
+
+### Session continuation
+
+The wrapper keeps codex context warm across follow-up calls so iterating on a
+mockup or re-reviewing an updated screenshot doesn't pay the cold-start cost
+twice. Every successful call records the codex session UUID at
+`~/.claude/skills/codex-vision/.last-session-uuid`, and the next call consults
+that cache via a small heuristic:
+
+- If the new prompt contains follow-up phrasing — `continue`, `iterate`,
+  `follow up`, `based on the previous`, `again with`, `now also`, `now add`,
+  `also add`, `refine`, `tweak`, `as before`, `same image`, `keep going` —
+  the wrapper auto-resumes the cached session.
+- Otherwise it starts fresh and updates the cache with the new UUID.
+
+Flag overrides, in priority order: `--fresh` (always new) > `--resume UUID`
+(use that exact UUID) > `--resume-last-vision` (force cache) > heuristic.
+
+Resumed sessions reuse the codex sandbox + workspace config from their
+original turn, so `generate` / `edit` writes to the same `OUT_PATH` parent
+directory they did the first time without re-passing `--sandbox`. If the
+cache file is missing, the heuristic silently falls through to a fresh
+session — never errors.
 
 ### Conventions Claude must follow
 
@@ -149,6 +175,23 @@ bash ~/.claude/skills/codex-vision/scripts/check-triggering.sh --runs 3    # maj
 If you change the YAML `description` or the **When to invoke** / **When NOT to
 invoke** sections, re-run the test and tighten phrasing until it returns to
 50/50.
+
+## Session-modes stress test
+
+The session-continuation logic has its own regression test at
+`tests/session-modes/check-session-modes.sh`. It stubs the codex CLI,
+fabricates realistic rollout files under a private `CODEX_HOME`, and asserts
+the four core behaviors: fresh-by-default, `--resume UUID`, heuristic-resume
+(prompt contains follow-up phrasing), and heuristic-fresh (prompt does not).
+A fifth case verifies `--fresh` defeats the heuristic. Each run writes a
+markdown summary to `tests/session-modes/results-<timestamp>.md`. Run with:
+
+```bash
+bash ~/.claude/skills/codex-vision/tests/session-modes/check-session-modes.sh
+```
+
+The test is offline (no network, no real codex calls); re-run after any edit
+to the wrapper's session-continuation block.
 
 ## Don't
 

@@ -9,3 +9,10 @@
 # guard against accidental cwd-relative writes):
 codex-vision-out/
 *.tmux-log
+
+# Session-continuation cache written by run_codex after each invocation.
+# Machine-specific UUIDs — do not commit.
+.last-session-uuid
+
+# Stress-test reports (timestamped per run, no need to track them).
+tests/session-modes/results-*.md
