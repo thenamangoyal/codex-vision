@@ -1,6 +1,6 @@
 ---
 name: codex-vision
-description: Use when the user wants Claude to send images to OpenAI Codex — Codex-side review of an existing screenshot/mockup/wireframe, generate an image via Codex's image_gen tool, or edit an existing image via Codex — or explicitly invokes "codex-vision" / "/codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch. SKIP when the task is text-only (code review/debugging/generation, "use codex" without an image) — call `codex exec` directly via Bash, or use the `codex:rescue` skill for long-running text work. The bare word "codex" is not a trigger; the bare word "screenshot" is not a trigger (e.g. "take a screenshot", "screenshot failed"). For generate/edit, require explicit Codex intent unless the user invoked the skill by name. Explicit `/codex-vision` invocation overrides every other gating rule below.
+description: Use when the user wants Claude to send images to OpenAI Codex — Codex-side review of an existing screenshot/mockup/wireframe, generate an image via Codex's image_gen tool, or edit an existing image via Codex — or explicitly invokes "codex-vision" / "/codex-vision". Wraps the upstream `codex exec -i` CLI with three modes (review / generate / edit) and an opt-in tmux session prefixed `claude-codex-` so the user can attach and watch. SKIP when the task is text-only, or when the user needs a durable multi-turn repo task — use codex-tmux-dev for long-running image+coding work. The bare word "codex" is not a trigger; the bare word "screenshot" is not a trigger. For generate/edit, require explicit Codex intent unless the user invoked the skill by name. Explicit `/codex-vision` invocation overrides every other gating rule below.
 ---
 
 # codex-vision
@@ -27,7 +27,7 @@ Default to a plain `codex exec` (or the `codex:rescue` skill) when:
 - User asks Codex to **review code, a PR, a diff, a function** — text-only, no image. The `-i` flag is irrelevant.
 - User asks Codex to **write, refactor, or debug code** — call `codex exec "<prompt>"` directly.
 - User asks Codex a **generic question** ("ask codex what it thinks of X", "have codex explain Y") with no image attached.
-- User wants a **long-running coding session** with Codex — use `codex:rescue` for that.
+- User wants a **long-running repo coding session** with Codex, especially a screenshot-driven implementation loop — use `codex-tmux-dev send --image` so the same tmux-backed Codex session can review, implement, test, and resume.
 - User mentions "codex" but the actual artifact is text (logs, stack trace, JSON, code) — codex-vision adds nothing; the `image_gen` tool prompt would mislead the model.
 - User has a screenshot on disk **but the current ask is unrelated** to that screenshot — don't auto-fire just because a PNG exists in `/tmp/`.
 
@@ -40,6 +40,18 @@ The skill is a single shell wrapper. From the Bash tool:
 ```bash
 ~/.claude/skills/codex-vision/scripts/codex-vision.sh <mode> [options] <args>
 ```
+
+## Long-Running Image Work
+
+Do not use this skill's `--tmux` mode for durable repo work. That mode is only an observable wrapper around a one-shot `codex exec` call.
+
+For tasks like "use this dashboard screenshot, redesign the page, implement the code, test it, and keep working later", use `codex-tmux-dev` instead:
+
+```bash
+/Users/naman/workspace/agent-skills/private/skills/codex-tmux-dev/scripts/codex-tmux-dev.sh send "$REPO" "$PROMPT_FILE" --label dashboard-redesign --image /absolute/path/dashboard.png
+```
+
+That preserves the repo-scoped Codex UUID, stages input images under `.agent/codex/images/inputs/<label>/`, and collects generated images under `.agent/codex/images/outputs/<label>/`.
 
 ### Modes
 
