@@ -22,12 +22,12 @@ Two ways to qualify:
 
 ## When NOT to invoke this skill
 
-Default to a plain `codex exec` (or the `codex:rescue` skill) when:
+Default to a plain `codex exec` or a durable Codex session skill when:
 
 - User asks Codex to **review code, a PR, a diff, a function** — text-only, no image. The `-i` flag is irrelevant.
 - User asks Codex to **write, refactor, or debug code** — call `codex exec "<prompt>"` directly.
 - User asks Codex a **generic question** ("ask codex what it thinks of X", "have codex explain Y") with no image attached.
-- User wants a **long-running repo coding session** with Codex, especially a screenshot-driven implementation loop — use `codex-tmux-dev send --image` so the same tmux-backed Codex session can review, implement, test, and resume.
+- User wants a **long-running repo coding session** with Codex, especially a screenshot-driven implementation loop — use the installed durable Codex/tmux workflow instead so the same repo-scoped Codex session can review, implement, test, and resume.
 - User mentions "codex" but the actual artifact is text (logs, stack trace, JSON, code) — codex-vision adds nothing; the `image_gen` tool prompt would mislead the model.
 - User has a screenshot on disk **but the current ask is unrelated** to that screenshot — don't auto-fire just because a PNG exists in `/tmp/`.
 
@@ -45,13 +45,7 @@ The skill is a single shell wrapper. From the Bash tool:
 
 Do not use this skill's `--tmux` mode for durable repo work. That mode is only an observable wrapper around a one-shot `codex exec` call.
 
-For tasks like "use this dashboard screenshot, redesign the page, implement the code, test it, and keep working later", use `codex-tmux-dev` instead:
-
-```bash
-/Users/naman/workspace/agent-skills/private/skills/codex-tmux-dev/scripts/codex-tmux-dev.sh send "$REPO" "$PROMPT_FILE" --label dashboard-redesign --image /absolute/path/dashboard.png
-```
-
-That preserves the repo-scoped Codex UUID, stages input images under `.agent/codex/images/inputs/<label>/`, and collects generated images under `.agent/codex/images/outputs/<label>/`.
+For tasks like "use this dashboard screenshot, redesign the page, implement the code, test it, and keep working later", use the installed durable Codex/tmux workflow instead of codex-vision. It should preserve the repo-scoped Codex UUID, support repeated image attachments, and keep input/output images in the repo's `.agent/codex/images/` handoff area.
 
 ### Modes
 
