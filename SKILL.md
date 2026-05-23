@@ -47,6 +47,16 @@ Do not use this skill's `--tmux` mode for durable repo work. That mode is only a
 
 For tasks like "use this dashboard screenshot, redesign the page, implement the code, test it, and keep working later", use the installed durable Codex/tmux workflow instead of codex-vision. It should preserve the repo-scoped Codex UUID, support repeated image attachments, and keep input/output images in the repo's `.agent/codex/images/` handoff area.
 
+## Artifact Storage
+
+This skill is intentionally temporary and one-shot. Do not create or manage a repo-local `.agent/codex/` tree from codex-vision.
+
+- Input images are read from the path the caller provides. If the caller gives a URL, download it to `/tmp/` first.
+- Generated and edited images default to `/tmp/codex-vision-out/<slug>-<timestamp>.png`.
+- tmux observation logs default to `/tmp/claude-codex-<slug>.log`.
+
+If the user wants persistent repo-local image history, repeated screenshots, or generated assets tied to implementation work, route to the durable Codex/tmux workflow instead.
+
 ### Modes
 
 | Mode | Synopsis | What it does |
@@ -95,6 +105,7 @@ session — never errors.
 - **Always prefix tmux sessions with `claude-codex-`.** The script enforces this; never bypass it. Lets the user identify Claude-spawned sessions with `tmux ls | grep claude-codex-`.
 - **Logs go to `/tmp/claude-codex-<slug>.log`** — predictable so user can `tail -f` independently.
 - **Images output to `/tmp/codex-vision-out/`** by default.
+- **Do not write codex-vision images into `.agent/codex/`** — that folder belongs to durable repo-scoped Codex/tmux sessions.
 - **Use `--tmux` only when** the run is expected to take >30s OR the user wants to observe / interrupt OR the user explicitly asks for a session. For quick image reviews, default to synchronous mode.
 - **For mixed workflows** (input image + generated output), use `edit` mode — it sets up both halves in one Codex call.
 
