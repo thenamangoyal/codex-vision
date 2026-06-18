@@ -118,6 +118,7 @@ esac
 MODE="$1"; shift
 case "$MODE" in
   review|generate|edit|selftest|doctor) ;;
+  __claimtest) ;;   # hidden: exercise claim_generated_image() in tests (no codex needed)
   *) echo "ERROR: unknown mode '$MODE'. Run with --help." >&2; exit 2 ;;
 esac
 
@@ -153,6 +154,9 @@ done
 # ---------- session-continuation state ----------
 LAST_VISION_FILE="$(dirname "$0")/../.last-session-uuid"
 CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+# Where codex's image_gen writes its PNGs (overridable for tests). The wrapper — NOT the model —
+# claims the image produced THIS run from here, so a stale image from a prior session can't leak.
+CODEX_GENERATED_DIR="${CODEX_GENERATED_DIR:-${CODEX_HOME:-$HOME/.codex}/generated_images}"
 
 # Heuristic: does the prompt look like a follow-up?
 # We pick phrasings that strongly imply "build on the prior turn":
@@ -285,6 +289,25 @@ ensure_out_path() {
     OUT_PATH="/tmp/codex-vision-out/${mode}-${slug}-$(date +%s).png"
   fi
   mkdir -p "$(dirname "$OUT_PATH")"
+}
+
+# Claim the image image_gen produced DURING this run: the newest `ig_*.png` across
+# $CODEX_GENERATED_DIR plus any extra dirs (e.g. the -C workspace) whose mtime is NEWER than MARKER
+# (a file touched just before the run). Echo its path; empty if none. The WRAPPER copies this file —
+# it never trusts the model's own `cp` — so a stale image from an earlier session cannot leak into
+# OUT_PATH (the root cause of the "regenerate returns the previous image" bug). See tests/.
+claim_generated_image() {
+  local marker="$1"; shift
+  local d f candidates=()
+  for d in "$CODEX_GENERATED_DIR" "$@"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && candidates+=("$f")
+    done < <(find "$d" -type f -name 'ig_*.png' -newer "$marker" 2>/dev/null)
+  done
+  [[ ${#candidates[@]} -eq 0 ]] && return 0
+  printf '%s\n' "${candidates[@]}" | xargs stat -f '%m %N' 2>/dev/null \
+    | sort -rn | head -1 | awk '{ $1=""; sub(/^ /,""); print }'
 }
 
 run_codex() {
@@ -425,8 +448,17 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     IMAGES=()
     # Apply heuristic against the user's prompt, not the wrapped instructions.
     resolve_resume_target "$USER_PROMPT"
+    _marker="$(mktemp -t cvmark.XXXXXX)"; rm -f "$OUT_PATH"
     run_codex
-    [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
+    _src="$(claim_generated_image "$_marker" "$(dirname "$OUT_PATH")")"; rm -f "$_marker"
+    if [[ -n "$_src" ]]; then
+      cp -f "$_src" "$OUT_PATH"
+      echo "[codex-vision] image written: $OUT_PATH (source: $_src)"
+    else
+      rm -f "$OUT_PATH"   # never leave a stale image the model may have wrongly cp'd
+      echo "ERROR: image_gen produced no NEW image this run (cached/failed generation) — refusing to write a stale image. Re-run (try --fresh, or restart Codex)." >&2
+      exit 3
+    fi
     ;;
 
   edit)
@@ -445,8 +477,17 @@ After image_gen finishes, the edited PNG will be at \`~/.codex/generated_images/
 Then on its own line print exactly the saved path, followed by a one-sentence summary of what changed."
     IMAGES=("$SRC_IMAGE")
     resolve_resume_target "$USER_PROMPT"
+    _marker="$(mktemp -t cvmark.XXXXXX)"; rm -f "$OUT_PATH"
     run_codex
-    [[ -f "$OUT_PATH" ]] && echo "[codex-vision] image written: $OUT_PATH"
+    _src="$(claim_generated_image "$_marker" "$(dirname "$OUT_PATH")")"; rm -f "$_marker"
+    if [[ -n "$_src" ]]; then
+      cp -f "$_src" "$OUT_PATH"
+      echo "[codex-vision] image written: $OUT_PATH (source: $_src)"
+    else
+      rm -f "$OUT_PATH"
+      echo "ERROR: image_gen produced no NEW image this run (cached/failed edit) — refusing to write a stale image. Re-run (try --fresh, or restart Codex)." >&2
+      exit 3
+    fi
     ;;
 
   doctor)
@@ -493,6 +534,29 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     IMAGES=("$FIXTURE")
     resolve_resume_target "$PROMPT"
     run_codex
-    echo "[codex-vision] selftest complete. Visually verify Codex reported: red/dark-red, green/dark-green, gold/yellow → OK"
+    echo "[codex-vision] review OK if Codex reported: red/dark-red, green/dark-green, gold/yellow."
+    # ---- image_gen probe: does THIS codex build actually PRODUCE image files? ----
+    echo "[codex-vision] selftest — probing image_gen (generate a tiny square)…"
+    _pm="$(mktemp -t cvprobe.XXXXXX)"
+    MODE="generate"; PROMPT="Use the image_gen tool to generate a 64x64 solid red square PNG, then stop."
+    IMAGES=(); OUT_PATH="/tmp/codex-vision-out/probe-$$.png"; mkdir -p "$(dirname "$OUT_PATH")"; rm -f "$OUT_PATH"
+    FRESH=1; resolve_resume_target "$PROMPT"; run_codex
+    _pi="$(claim_generated_image "$_pm" "$(dirname "$OUT_PATH")")"; rm -f "$_pm"
+    if [[ -n "$_pi" ]]; then
+      echo "[codex-vision] image_gen: OK — produced $_pi"
+    else
+      echo "[codex-vision] image_gen: NOT PRODUCING FILES on this codex build ($("$CODEX_BIN" --version 2>&1 | head -1))."
+      echo "               'review' works; 'generate'/'edit' will fail-safe (refuse to write a stale image) until"
+      echo "               image_gen produces files (update Codex / check image_gen availability). This is the"
+      echo "               root cause of the old 'regenerate returns the previous image' bug — now caught, not masked."
+    fi
+    echo "[codex-vision] selftest complete."
+    ;;
+
+  __claimtest)
+    # Hidden test entrypoint: codex-vision __claimtest <marker> [extra-dir...]
+    # Prints the image claim_generated_image() would copy (drives tests/test_select_image.sh).
+    # Searches $CODEX_GENERATED_DIR (set by the test) + any extra dirs given.
+    claim_generated_image "${POSITIONAL[@]}"
     ;;
 esac
