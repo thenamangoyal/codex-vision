@@ -249,9 +249,13 @@ resolve_resume_target() {
     fi
     return 0
   fi
-  # Heuristic — only resume if (a) phrasing looks like a follow-up AND (b) we
-  # have a cached uuid to resume into. Otherwise stay silent and run fresh.
-  if [[ -n "$prompt_for_heuristic" ]] && prompt_looks_like_followup "$prompt_for_heuristic"; then
+  # Heuristic AUTO-resume applies to `review` ONLY (re-reviewing an updated
+  # screenshot benefits from warm context). `generate`/`edit` must NOT auto-resume:
+  # a resumed image session re-emits ~the same image (the regenerate-same-image
+  # bug). They resume only when the caller explicitly passes --resume /
+  # --resume-last-vision (handled above). Conditions to auto-resume:
+  #   (a) mode is review, (b) phrasing looks like a follow-up, (c) cached uuid exists.
+  if [[ "$MODE" == "review" ]] && [[ -n "$prompt_for_heuristic" ]] && prompt_looks_like_followup "$prompt_for_heuristic"; then
     local cached
     cached="$(read_last_vision_uuid)"
     if [[ -n "$cached" ]]; then

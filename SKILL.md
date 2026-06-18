@@ -85,11 +85,15 @@ twice. Every successful call records the codex session UUID at
 `~/.claude/skills/codex-vision/.last-session-uuid`, and the next call consults
 that cache via a small heuristic:
 
-- If the new prompt contains follow-up phrasing — `continue`, `iterate`,
-  `follow up`, `based on the previous`, `again with`, `now also`, `now add`,
-  `also add`, `refine`, `tweak`, `as before`, `same image`, `keep going` —
-  the wrapper auto-resumes the cached session.
-- Otherwise it starts fresh and updates the cache with the new UUID.
+- Auto-resume applies to **`review` only.** If a `review` prompt contains
+  follow-up phrasing — `continue`, `iterate`, `follow up`, `based on the
+  previous`, `again with`, `now also`, `now add`, `also add`, `refine`, `tweak`,
+  `as before`, `same image`, `keep going` — the wrapper auto-resumes the cached
+  session (re-reviewing an updated screenshot keeps context warm).
+- **`generate` / `edit` NEVER auto-resume** (even with follow-up phrasing): a
+  resumed image session re-emits ~the same image (the regenerate-same-image bug).
+  They start fresh unless you pass `--resume <UUID>` / `--resume-last-vision`.
+- Otherwise the wrapper starts fresh and updates the cache with the new UUID.
 
 Flag overrides, in priority order: `--fresh` (always new) > `--resume UUID`
 (use that exact UUID) > `--resume-last-vision` (force cache) > heuristic.

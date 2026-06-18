@@ -121,8 +121,9 @@ UUID="$(hex8)-$(hex4)-$(hex4)-$(hex4)-$(hex12)"
 ROLLOUT="$DIR/rollout-$TS-$UUID.jsonl"
 printf '{"type":"session_meta","payload":{"id":"%s"}}\n' "$UUID" > "$ROLLOUT"
 echo "[stub] fresh session $UUID"
-# tiny sleep so back-to-back fresh calls have distinct mtimes for sort -rn
-sleep 0.05
+# sleep >1s so back-to-back fresh calls get distinct SECOND-granularity mtimes
+# (macOS `stat -f %m` is whole seconds) for the wrapper's newest-session scan.
+sleep 1.1
 STUB
 chmod +x "$PATHDIR/codex"
 
@@ -195,16 +196,20 @@ else
   record FAIL "resume-explicit" "before=${UUID_BASE:-EMPTY} after=${UUID_AFTER:-EMPTY}"
 fi
 
-# 3. Heuristic-resume ---------------------------------------------------------
+# 3. Heuristic-resume (REVIEW only) -------------------------------------------
+# Auto-resume on follow-up phrasing applies to `review` (re-reviewing an updated
+# screenshot keeps context warm). generate/edit are excluded (test 6) to avoid
+# the regenerate-same-image bug.
 reset_state
-run_wrapper generate "draw a circle" --out "$WORK/test-heur-resume-1.png"
+: > "$WORK/shot.png"
+run_wrapper review "$WORK/shot.png" "review this layout"
 UUID_H1="$(read_cache)"
-run_wrapper generate "now also add a square" --out "$WORK/test-heur-resume-2.png"
+run_wrapper review "$WORK/shot.png" "now also check the header spacing"
 UUID_H2="$(read_cache)"
 if [[ -n "$UUID_H1" && "$UUID_H1" == "$UUID_H2" ]]; then
-  record PASS "heuristic-resume" "cache preserved at ${UUID_H1:0:8}… (heuristic fired on 'now also')"
+  record PASS "heuristic-resume-review" "cache preserved at ${UUID_H1:0:8}… (review auto-resumed on 'now also')"
 else
-  record FAIL "heuristic-resume" "before=${UUID_H1:-EMPTY} after=${UUID_H2:-EMPTY}"
+  record FAIL "heuristic-resume-review" "before=${UUID_H1:-EMPTY} after=${UUID_H2:-EMPTY}"
 fi
 
 # 4. Heuristic-fresh ----------------------------------------------------------
@@ -229,6 +234,20 @@ if [[ -n "$UUID_FF1" && -n "$UUID_FF2" && "$UUID_FF1" != "$UUID_FF2" ]]; then
   record PASS "fresh-flag-override" "uuids differ: ${UUID_FF1:0:8}… ≠ ${UUID_FF2:0:8}… (--fresh defeated heuristic)"
 else
   record FAIL "fresh-flag-override" "before=${UUID_FF1:-EMPTY} after=${UUID_FF2:-EMPTY}"
+fi
+
+# 6. generate follow-up STAYS FRESH (the regenerate-same-image fix) -----------
+# A generate with follow-up phrasing must NOT auto-resume (resuming re-emits ~the
+# same image). Only an explicit --resume should resume a generate.
+reset_state
+run_wrapper generate "draw a circle" --out "$WORK/test-gen-fresh-1.png"
+UUID_GF1="$(read_cache)"
+run_wrapper generate "now also add a square" --out "$WORK/test-gen-fresh-2.png"
+UUID_GF2="$(read_cache)"
+if [[ -n "$UUID_GF1" && -n "$UUID_GF2" && "$UUID_GF1" != "$UUID_GF2" ]]; then
+  record PASS "generate-followup-fresh" "uuids differ: ${UUID_GF1:0:8}… ≠ ${UUID_GF2:0:8}… (generate did NOT auto-resume)"
+else
+  record FAIL "generate-followup-fresh" "before=${UUID_GF1:-EMPTY} after=${UUID_GF2:-EMPTY}"
 fi
 
 # --- write report ------------------------------------------------------------
