@@ -119,6 +119,7 @@ MODE="$1"; shift
 case "$MODE" in
   review|generate|edit|selftest|doctor) ;;
   __claimtest) ;;   # hidden: exercise claim_generated_image() in tests (no codex needed)
+  __rollouttest) ;; # hidden: exercise extract_image_from_rollout() in tests (no codex needed)
   *) echo "ERROR: unknown mode '$MODE'. Run with --help." >&2; exit 2 ;;
 esac
 
@@ -153,7 +154,9 @@ done
 
 # ---------- session-continuation state ----------
 LAST_VISION_FILE="$(dirname "$0")/../.last-session-uuid"
-CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+# Where codex writes session rollouts (.jsonl). Overridable for tests. On recent builds the
+# generated image lives here (base64 in an image_generation_call/_end event), not on disk.
+CODEX_SESSIONS_DIR="${CODEX_SESSIONS_DIR:-${CODEX_HOME:-$HOME/.codex}/sessions}"
 # Where codex's image_gen writes its PNGs (overridable for tests). The wrapper — NOT the model —
 # claims the image produced THIS run from here, so a stale image from a prior session can't leak.
 CODEX_GENERATED_DIR="${CODEX_GENERATED_DIR:-${CODEX_HOME:-$HOME/.codex}/generated_images}"
@@ -310,6 +313,82 @@ claim_generated_image() {
     | sort -rn | head -1 | awk '{ $1=""; sub(/^ /,""); print }'
 }
 
+# Extract the image from the session ROLLOUT log. On recent codex builds, image_gen.imagegen has NO
+# output-path param and does NOT write a file in headless `codex exec`; it returns the PNG INLINE,
+# which codex persists in the session rollout (.jsonl) as base64 at payload.result of an
+# `image_generation_call`/`_end` event. We decode the newest such image (from a rollout written THIS
+# run, i.e. newer than MARKER) straight to OUT. Echoes OUT on success; non-zero if none found.
+# Requires python3 (JSON + 1MB base64 lines are not safe in pure bash).
+extract_image_from_rollout() {
+  local marker="$1" out="$2"
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 - "$CODEX_SESSIONS_DIR" "$marker" "$out" <<'PY'
+import sys, os, glob, json, base64
+sessdir, marker, out = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    mt = os.path.getmtime(marker)
+except OSError:
+    mt = 0
+files = [f for f in glob.glob(os.path.join(sessdir, "**", "rollout-*.jsonl"), recursive=True)
+         if os.path.getmtime(f) >= mt]
+files.sort(key=os.path.getmtime, reverse=True)   # newest session first
+b64 = None
+for f in files:
+    last = None
+    try:
+        with open(f, "r") as fh:
+            for ln in fh:
+                if "image_generation" not in ln:
+                    continue
+                try:
+                    p = json.loads(ln).get("payload", {})
+                except Exception:
+                    continue
+                if p.get("type") in ("image_generation_end", "image_generation_call"):
+                    r = p.get("result")
+                    if isinstance(r, str):
+                        if r.startswith("data:"):
+                            r = r.split(",", 1)[-1]
+                        if r[:11] == "iVBORw0KGgo":   # PNG magic in base64
+                            last = r
+    except Exception:
+        continue
+    if last:
+        b64 = last
+        break
+if not b64:
+    sys.exit(2)
+with open(out, "wb") as o:
+    o.write(base64.b64decode(b64))
+print(out)
+PY
+}
+
+# Unified post-run collector for generate/edit. Tries, in order:
+#   1. rollout extraction — the image_gen PNG persisted as base64 in the session rollout (this codex
+#      build: image_gen returns the image INLINE, no file, no path param → the rollout is the only
+#      place the bytes land). This is the primary path on codex-cli 0.140.x.
+#   2. file claim — the newest fresh ig_*.png on disk (older/other builds that DO write a file).
+# On success writes OUT and prints the source; on failure removes OUT and exits 3 (never leaks a
+# stale image — the original "regenerate returns the previous image" bug). $3 is a noun for messages.
+collect_generated_image() {
+  local marker="$1" out="$2" what="$3" src=""
+  if extract_image_from_rollout "$marker" "$out" >/dev/null 2>&1 && [[ -s "$out" ]]; then
+    rm -f "$marker"
+    echo "[codex-vision] image written: $out (source: session rollout / image_gen inline)"
+    return 0
+  fi
+  src="$(claim_generated_image "$marker" "$(dirname "$out")")"; rm -f "$marker"
+  if [[ -n "$src" ]]; then
+    cp -f "$src" "$out"
+    echo "[codex-vision] image written: $out (source: $src)"
+    return 0
+  fi
+  rm -f "$out"   # never leave a stale image the model may have wrongly cp'd
+  echo "ERROR: image_gen produced no NEW image this run (cached/failed ${what}) — refusing to write a stale image. Re-run (try --fresh, or restart Codex)." >&2
+  exit 3
+}
+
 run_codex() {
   # All input goes through one entrypoint so tmux-mode and direct-mode share a code path.
   #
@@ -448,15 +527,7 @@ Then print one sentence describing what you drew. (The wrapper collects the prod
     resolve_resume_target "$USER_PROMPT"
     _marker="$(mktemp -t cvmark.XXXXXX)"; rm -f "$OUT_PATH"
     run_codex
-    _src="$(claim_generated_image "$_marker" "$(dirname "$OUT_PATH")")"; rm -f "$_marker"
-    if [[ -n "$_src" ]]; then
-      cp -f "$_src" "$OUT_PATH"
-      echo "[codex-vision] image written: $OUT_PATH (source: $_src)"
-    else
-      rm -f "$OUT_PATH"   # never leave a stale image the model may have wrongly cp'd
-      echo "ERROR: image_gen produced no NEW image this run (cached/failed generation) — refusing to write a stale image. Re-run (try --fresh, or restart Codex)." >&2
-      exit 3
-    fi
+    collect_generated_image "$_marker" "$OUT_PATH" generation
     ;;
 
   edit)
@@ -475,15 +546,7 @@ Then print one sentence describing what changed. (The wrapper collects the produ
     resolve_resume_target "$USER_PROMPT"
     _marker="$(mktemp -t cvmark.XXXXXX)"; rm -f "$OUT_PATH"
     run_codex
-    _src="$(claim_generated_image "$_marker" "$(dirname "$OUT_PATH")")"; rm -f "$_marker"
-    if [[ -n "$_src" ]]; then
-      cp -f "$_src" "$OUT_PATH"
-      echo "[codex-vision] image written: $OUT_PATH (source: $_src)"
-    else
-      rm -f "$OUT_PATH"
-      echo "ERROR: image_gen produced no NEW image this run (cached/failed edit) — refusing to write a stale image. Re-run (try --fresh, or restart Codex)." >&2
-      exit 3
-    fi
+    collect_generated_image "$_marker" "$OUT_PATH" edit
     ;;
 
   doctor)
@@ -537,13 +600,15 @@ Then print one sentence describing what changed. (The wrapper collects the produ
     MODE="generate"; PROMPT="Use the image_gen tool to generate a 64x64 solid red square PNG, then stop."
     IMAGES=(); OUT_PATH="/tmp/codex-vision-out/probe-$$.png"; mkdir -p "$(dirname "$OUT_PATH")"; rm -f "$OUT_PATH"
     FRESH=1; resolve_resume_target "$PROMPT"; run_codex
-    _pi="$(claim_generated_image "$_pm" "$(dirname "$OUT_PATH")")"; rm -f "$_pm"
-    if [[ -n "$_pi" ]]; then
-      echo "[codex-vision] image_gen: OK — produced $_pi"
+    if extract_image_from_rollout "$_pm" "$OUT_PATH" >/dev/null 2>&1 && [[ -s "$OUT_PATH" ]]; then
+      rm -f "$_pm"
+      echo "[codex-vision] image_gen: OK — extracted from session rollout ($(wc -c <"$OUT_PATH" | tr -d ' ') bytes) → $OUT_PATH"
+    elif _pi="$(claim_generated_image "$_pm" "$(dirname "$OUT_PATH")")"; rm -f "$_pm"; [[ -n "$_pi" ]]; then
+      echo "[codex-vision] image_gen: OK — produced file $_pi"
     else
-      echo "[codex-vision] image_gen: NOT PRODUCING FILES on this codex build ($("$CODEX_BIN" --version 2>&1 | head -1))."
+      echo "[codex-vision] image_gen: NO IMAGE recoverable on this codex build ($("$CODEX_BIN" --version 2>&1 | head -1))."
       echo "               'review' works; 'generate'/'edit' will fail-safe (refuse to write a stale image) until"
-      echo "               image_gen produces files (update Codex / check image_gen availability). This is the"
+      echo "               image_gen is recoverable (file on disk OR base64 in the session rollout). This is the"
       echo "               root cause of the old 'regenerate returns the previous image' bug — now caught, not masked."
     fi
     echo "[codex-vision] selftest complete."
@@ -554,5 +619,12 @@ Then print one sentence describing what changed. (The wrapper collects the produ
     # Prints the image claim_generated_image() would copy (drives tests/test_select_image.sh).
     # Searches $CODEX_GENERATED_DIR (set by the test) + any extra dirs given.
     claim_generated_image "${POSITIONAL[@]}"
+    ;;
+
+  __rollouttest)
+    # Hidden test entrypoint: codex-vision __rollouttest <marker> <out>
+    # Extracts the base64 image from rollouts under $CODEX_SESSIONS_DIR (set by the test) newer than
+    # <marker>, writing to <out>. Prints <out> on success / nothing on failure. Drives tests/.
+    extract_image_from_rollout "${POSITIONAL[0]}" "${POSITIONAL[1]}"
     ;;
 esac

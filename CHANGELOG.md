@@ -1,5 +1,31 @@
 # codex-vision — changelog
 
+## 2026-06-18 (2) — fix: generate/edit now WORK (extract the image from the session rollout)
+
+**The real root cause.** On `codex-cli 0.140.x`, `image_gen.imagegen` takes **only** a `prompt` — it
+has **no** output-path / destination / filename parameter — and in headless `codex exec` it writes
+**no file**. It returns the PNG **inline**, and codex persists that inline artifact in the session
+**rollout log** (`~/.codex/sessions/**/rollout-*.jsonl`) as base64 at `payload.result` of an
+`image_generation_call` / `image_generation_end` event. So the bytes always existed; nothing on disk
+ever exposed them. (Confirmed by asking the model for the tool schema, then locating the base64 in the
+rollout — a real 1254×1254 PNG.)
+
+**Fix.** `extract_image_from_rollout()` (python3) finds the newest rollout written **this run** (mtime
+≥ a per-run marker), decodes the latest embedded PNG, and writes it straight to `--out`.
+`collect_generated_image()` now tries, in order: (1) rollout extraction (this build), (2) the on-disk
+`ig_*.png` claim (builds that *do* write a file) — and still **refuses to write** (`exit 3`) if neither
+yields a fresh image, so a stale image can never leak. `generate`/`edit` produce real images again.
+
+**Also.** `CODEX_SESSIONS_DIR` is now env-overridable (was hard-assigned) so the path is testable.
+`selftest` reports `image_gen: OK — extracted from session rollout (<n> bytes)` on this build.
+
+**Test.** `tests/test_rollout_extract.sh` (no Codex/network) drives hidden `__rollouttest` with
+synthetic rollout fixtures: (A) extracts an embedded PNG from a fresh rollout, (B) refuses when only a
+stale rollout exists, (C) handles `image_generation_call` and picks the newest rollout. Run:
+`bash tests/test_rollout_extract.sh`.
+
+---
+
 ## 2026-06-18 — fix: stale-image leak on generate/edit (the "regenerate returns the previous image" bug)
 
 **Symptom.** `codex-vision generate "<prompt>" --out X` (even with `--fresh`) printed a reply that
