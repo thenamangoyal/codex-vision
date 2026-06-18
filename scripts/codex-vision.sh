@@ -440,11 +440,9 @@ case "$MODE" in
     fi
     USER_PROMPT="${POSITIONAL[0]}"
     ensure_out_path "gen" "$(slugify "$USER_PROMPT")"
-    PROMPT="Use the built-in image_gen tool to generate the following image: ${USER_PROMPT}
+    PROMPT="You MUST use the image_gen.imagegen tool to generate this image. Do NOT draw it with shell, python, PIL, or apply_patch, and do NOT copy or move any files — just call image_gen.imagegen once. Image to generate: ${USER_PROMPT}
 
-After image_gen finishes, the resulting PNG will be at \`~/.codex/generated_images/<session-id>/ig_*.png\` (use the most recent file in your current session's directory). Use a shell command to \`cp\` that file to exactly: ${OUT_PATH}
-
-Then on its own line print exactly the saved path, followed by a one-sentence summary of what you drew."
+Then print one sentence describing what you drew. (The wrapper collects the produced file itself.)"
     IMAGES=()
     # Apply heuristic against the user's prompt, not the wrapped instructions.
     resolve_resume_target "$USER_PROMPT"
@@ -470,11 +468,9 @@ Then on its own line print exactly the saved path, followed by a one-sentence su
     USER_PROMPT="${POSITIONAL[1]}"
     [[ -f "$SRC_IMAGE" ]] || { echo "ERROR: image not found: $SRC_IMAGE" >&2; exit 2; }
     ensure_out_path "edit" "$(slugify "$USER_PROMPT")"
-    PROMPT="Use the built-in image_gen tool to edit the attached image with this instruction: ${USER_PROMPT}
+    PROMPT="You MUST use the image_gen.imagegen tool to edit the attached image. Do NOT redraw it with shell/python/apply_patch, and do NOT copy or move any files — just call image_gen.imagegen once. Edit instruction: ${USER_PROMPT}
 
-After image_gen finishes, the edited PNG will be at \`~/.codex/generated_images/<session-id>/ig_*.png\` (use the most recent file in your current session's directory). Use a shell command to \`cp\` that file to exactly: ${OUT_PATH}
-
-Then on its own line print exactly the saved path, followed by a one-sentence summary of what changed."
+Then print one sentence describing what changed. (The wrapper collects the produced file itself.)"
     IMAGES=("$SRC_IMAGE")
     resolve_resume_target "$USER_PROMPT"
     _marker="$(mktemp -t cvmark.XXXXXX)"; rm -f "$OUT_PATH"
