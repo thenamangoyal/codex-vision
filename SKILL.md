@@ -147,9 +147,14 @@ The skill assumes:
 - `tmux` installed if `--tmux` is used (`brew install tmux` on macOS)
 
 The script auto-detects the codex binary in this order:
-1. `which codex`
-2. `/Applications/Codex.app/Contents/Resources/codex`
-3. fail with a clear error message
+1. `$CODEX_VISION_CODEX_BIN` (explicit override — point it at any codex binary)
+2. `which codex` (anywhere on PATH)
+3. `/Applications/Codex.app/Contents/Resources/codex` (standalone Codex.app)
+4. `/Applications/ChatGPT.app/Contents/Resources/codex` (codex bundled inside ChatGPT.app — the Codex app merged into ChatGPT.app)
+5. the same two bundles under per-user `~/Applications/`
+6. fail with a clear error message
+
+If your codex lives somewhere unusual, `export CODEX_VISION_CODEX_BIN=/path/to/codex`.
 
 ## How users install the skill
 

@@ -13,22 +13,42 @@ locate_codex() {
   if [[ -n "${CODEX_VISION_TEST_MISSING:-}" ]]; then
     return 1
   fi
+  # 1. Explicit override wins: point CODEX_VISION_CODEX_BIN at any codex binary.
+  if [[ -n "${CODEX_VISION_CODEX_BIN:-}" && -x "${CODEX_VISION_CODEX_BIN}" ]]; then
+    echo "${CODEX_VISION_CODEX_BIN}"
+    return 0
+  fi
+  # 2. Anywhere on PATH.
   if command -v codex >/dev/null 2>&1; then
     command -v codex
     return 0
   fi
-  if [[ -x "/Applications/Codex.app/Contents/Resources/codex" ]]; then
-    echo "/Applications/Codex.app/Contents/Resources/codex"
-    return 0
-  fi
+  # 3. Known macOS app bundles that ship the codex CLI inside them. The standalone
+  #    Codex.app bundles it, and recent ChatGPT.app builds also ship codex under
+  #    Contents/Resources/codex (the Codex app merged into ChatGPT.app). Check both,
+  #    in /Applications and the per-user ~/Applications.
+  local c
+  for c in \
+    "/Applications/Codex.app/Contents/Resources/codex" \
+    "/Applications/ChatGPT.app/Contents/Resources/codex" \
+    "${HOME}/Applications/Codex.app/Contents/Resources/codex" \
+    "${HOME}/Applications/ChatGPT.app/Contents/Resources/codex" ; do
+    if [[ -x "$c" ]]; then
+      echo "$c"
+      return 0
+    fi
+  done
   return 1
 }
 
 print_install_help() {
   cat >&2 <<'EOF'
 codex-vision needs the OpenAI Codex CLI installed. None was found at:
-  • which codex                                       (anywhere on PATH)
-  • /Applications/Codex.app/Contents/Resources/codex  (macOS Codex app)
+  • $CODEX_VISION_CODEX_BIN                            (explicit override, if set)
+  • which codex                                        (anywhere on PATH)
+  • /Applications/Codex.app/Contents/Resources/codex   (macOS Codex app)
+  • /Applications/ChatGPT.app/Contents/Resources/codex (codex bundled in ChatGPT.app)
+  • ~/Applications/{Codex,ChatGPT}.app/...             (per-user app installs)
 
 Official install — pick one:
 
@@ -38,6 +58,9 @@ Official install — pick one:
 
   Codex CLI only (no GUI, any platform):
       npm install -g @openai/codex                    # via npm
+
+Already have codex somewhere unusual (e.g. inside ChatGPT.app)? Point at it:
+      export CODEX_VISION_CODEX_BIN=/path/to/codex
 
 After install, authenticate once (opens a browser):
   codex login

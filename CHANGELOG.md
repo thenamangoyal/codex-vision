@@ -1,5 +1,19 @@
 # codex-vision — changelog
 
+## 2026-07-10 — fix: find the codex CLI bundled inside ChatGPT.app (+ `CODEX_VISION_CODEX_BIN` override)
+
+**Why.** The standalone Codex.app can be moved or uninstalled, and recent builds ship the codex CLI
+**inside ChatGPT.app** (`/Applications/ChatGPT.app/Contents/Resources/codex`) now that the Codex app
+merged into ChatGPT.app. `locate_codex()` only checked `command -v codex` and
+`/Applications/Codex.app/...`, so `generate`/`edit`/`review` failed with "no codex found" even when a
+working codex (codex-cli 0.144.0) sat on disk inside ChatGPT.app.
+
+**Fix.** `locate_codex()` now resolves, in order: (1) `$CODEX_VISION_CODEX_BIN` explicit override,
+(2) `command -v codex` on PATH, (3) `Codex.app` then `ChatGPT.app` bundles under `/Applications` and
+per-user `~/Applications`. `print_install_help()` and the SKILL.md detection order were updated to
+match. Verified with `doctor`: resolves `/Applications/ChatGPT.app/Contents/Resources/codex` with no
+PATH hacks.
+
 ## 2026-06-18 (2) — fix: generate/edit now WORK (extract the image from the session rollout)
 
 **The real root cause.** On `codex-cli 0.140.x`, `image_gen.imagegen` takes **only** a `prompt` — it
